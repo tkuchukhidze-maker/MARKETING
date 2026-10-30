@@ -30,10 +30,13 @@
             </div>
             @foreach ($row['days'] as $items)
                 <div>
-                    @foreach ($items as $t)
-                        <a class="cal-item" href="{{ route('tasks.show', $t) }}" style="--pf: {{ Studio::PLATFORMS[$t->platform][1] }}">
+                    @foreach ($items as $item)
+                        @php($t = $item['task'])
+                        <a class="cal-item" href="{{ route('tasks.show', $t) }}" style="--pf: {{ Studio::PLATFORMS[$row['key']][1] }}">
                             <span>{{ $t->publish_at->format('H:i') }} · <span style="font-weight: 700; color: {{ in_array($t->status, ['approved', 'published']) ? '#00854D' : '#676879' }}">{{ Studio::statusLabel($t->status) }}</span></span>
                             <b>{{ $t->title }}</b>
+                            @if ($item['format'])<span>{{ $item['format'] }}</span>@endif
+                            @if ($t->channels->count() > 1)<span style="color: var(--muted)">+ {{ $t->channels->count() - 1 }} სხვა ქსელი</span>@endif
                         </a>
                     @endforeach
                 </div>
@@ -47,7 +50,7 @@
         <h2>თარიღის გარეშე</h2>
         <ul class="timeline">
             @foreach ($unscheduled as $t)
-                <li><a href="{{ route('tasks.show', $t) }}"><b>{{ $t->title }}</b></a> · {{ Studio::platformLabel($t->platform) }} · {{ Studio::statusLabel($t->status) }}</li>
+                <li><a href="{{ route('tasks.show', $t) }}"><b>{{ $t->title }}</b></a> · {{ $t->channels->map(fn ($c) => Studio::platformLabel($c->platform))->join(', ') }} · {{ Studio::statusLabel($t->status) }}</li>
             @endforeach
         </ul>
     </section>

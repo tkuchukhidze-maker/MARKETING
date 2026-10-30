@@ -27,6 +27,13 @@ final class Studio
         'story'     => ['Story',     '#FFB020', '#323338'],
     ];
 
+    /** Format choices offered per platform. */
+    public const FORMATS = [
+        'facebook'  => ['პოსტი', 'პოსტერი', 'კარუსელი', 'ვიდეო', 'Reels', 'ქავერი', 'ივენთის ქავერი'],
+        'instagram' => ['პოსტი 1:1', 'პოსტი 4:5', 'კარუსელი', 'Reels', 'ქავერი (Highlights)'],
+        'story'     => ['სთორი 9:16', 'ვიდეო სთორი', 'ანიმირებული სთორი', 'სთორის სერია'],
+    ];
+
     public const ROLES = [
         'admin'        => 'ადმინისტრატორი',
         'manager'      => 'მარკეტინგის ხელმძღვანელი',

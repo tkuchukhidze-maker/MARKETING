@@ -9,35 +9,78 @@ use App\Models\Venue;
 use App\Support\Studio;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class TaskController extends Controller
 {
-    private function rules(): array
+    /**
+     * Validates the task form.
+     *
+     * Platforms arrive as platforms[] (one or more, or all) and a format per
+     * platform as formats[platform]. Reference links arrive one per line.
+     *
+     * @return array{0: array<string, mixed>, 1: array<string, ?string>}
+     */
+    private function validateTask(Request $request): array
     {
-        return [
+        $data = $request->validate([
             'title' => ['required', 'string', 'max:200'],
-            'platform' => ['required', Rule::in(array_keys(Studio::PLATFORMS))],
-            'format' => ['nullable', 'string', 'max:60'],
+            'platforms' => ['required', 'array', 'min:1'],
+            'platforms.*' => ['distinct', Rule::in(array_keys(Studio::PLATFORMS))],
+            'formats' => ['nullable', 'array'],
+            'formats.*' => ['nullable', 'string', 'max:60'],
             'brief' => ['nullable', 'string', 'max:5000'],
+            'reference_links' => ['nullable', 'string', 'max:5000'],
             'assignee_id' => ['nullable', Rule::exists('users', 'id')],
             'due_on' => ['nullable', 'date'],
             'publish_at' => ['nullable', 'date'],
-        ];
+        ], [
+            'platforms.required' => 'აირჩიე მინიმუმ ერთი სოციალური ქსელი.',
+        ]);
+
+        $links = collect(preg_split('/\R/', (string) ($data['reference_links'] ?? '')))
+            ->map(fn ($l) => trim($l))->filter()->unique()->values();
+
+        $bad = $links->reject(fn ($l) => filter_var($l, FILTER_VALIDATE_URL) && preg_match('#^https?://#i', $l));
+        if ($bad->isNotEmpty()) {
+            throw ValidationException::withMessages([
+                'reference_links' => 'ეს ბმული არასწორია: '.$bad->first().' (უნდა იწყებოდეს https://-ით)',
+            ]);
+        }
+        if ($links->count() > 20) {
+            throw ValidationException::withMessages(['reference_links' => 'მაქსიმუმ 20 ბმული.']);
+        }
+
+        $channels = [];
+        foreach ($data['platforms'] as $platform) {
+            $channels[$platform] = $data['formats'][$platform] ?? null;
+        }
+
+        $fields = collect($data)->only(['title', 'brief', 'assignee_id', 'due_on', 'publish_at'])->all();
+        $fields['reference_links'] = $links->isEmpty() ? null : $links->all();
+
+        return [$fields, $channels];
     }
 
     public function store(Request $request, Venue $venue): RedirectResponse
     {
-        $data = $request->validate($this->rules());
+        [$fields, $channels] = $this->validateTask($request);
 
-        $task = $venue->tasks()->create([
-            ...$data,
-            'status' => 'todo',
-            'creator_id' => $request->user()->id,
-        ]);
+        $task = DB::transaction(function () use ($venue, $fields, $channels, $request) {
+            $task = $venue->tasks()->create([
+                ...$fields,
+                'status' => 'todo',
+                'creator_id' => $request->user()->id,
+            ]);
+            $task->syncChannels($channels);
+
+            return $task;
+        });
         $task->log($request->user(), 'created');
 
         return redirect()->route('board', $venue)->with('ok', 'დავალება დაემატა.');
@@ -45,7 +88,7 @@ class TaskController extends Controller
 
     public function show(Task $task): View
     {
-        $task->load(['venue', 'assignee', 'creator', 'approver', 'assets.user', 'comments.user', 'activities.user']);
+        $task->load(['venue', 'channels', 'assignee', 'creator', 'approver', 'assets.user', 'assets.channel', 'comments.user', 'activities.user']);
 
         return view('tasks.show', [
             'task' => $task,
@@ -56,10 +99,13 @@ class TaskController extends Controller
 
     public function update(Request $request, Task $task): RedirectResponse
     {
-        $data = $request->validate($this->rules());
+        [$fields, $channels] = $this->validateTask($request);
         $oldAssignee = $task->assignee_id;
 
-        $task->update($data);
+        DB::transaction(function () use ($task, $fields, $channels) {
+            $task->update($fields);
+            $task->syncChannels($channels);
+        });
         $task->log($request->user(), 'updated');
 
         if ($task->assignee_id && (int) $task->assignee_id !== (int) $oldAssignee) {
@@ -114,7 +160,9 @@ class TaskController extends Controller
         $venue = $task->venue;
 
         foreach ($task->assets as $asset) {
-            Storage::disk($asset->disk)->delete($asset->path);
+            if (! $asset->isLink() && $asset->path) {
+                Storage::disk($asset->disk)->delete($asset->path);
+            }
         }
         $task->delete();
 
@@ -129,38 +177,59 @@ class TaskController extends Controller
         return back();
     }
 
+    /**
+     * Hand in work: either a file, or a link to the finished product
+     * (Google Drive, Figma, Canva, Dropbox…). Optionally for one platform.
+     */
     public function upload(Request $request, Task $task): RedirectResponse
     {
-        $request->validate([
-            'file' => ['required', 'file', 'max:102400', 'mimetypes:image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,application/pdf'],
+        $data = $request->validate([
+            'file' => ['required_without:url', 'nullable', 'file', 'max:102400', 'mimetypes:image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,application/pdf'],
+            'url' => ['required_without:file', 'nullable', 'url:https,http', 'max:2048'],
+            'task_channel_id' => ['nullable', Rule::exists('task_channels', 'id')->where('task_id', $task->id)],
+        ], [
+            'file.required_without' => 'ატვირთე ფაილი ან ჩასვი მზა პროდუქტის ბმული.',
+            'url.required_without' => 'ატვირთე ფაილი ან ჩასვი მზა პროდუქტის ბმული.',
+            'url.url' => 'ბმული არასწორია (უნდა იწყებოდეს https://-ით).',
         ]);
 
-        $file = $request->file('file');
-        $disk = config('studio.assets_disk');
         $version = (int) $task->assets()->max('version') + 1;
-        $path = $file->store("tasks/{$task->id}", $disk);
-
-        $task->assets()->create([
+        $common = [
             'user_id' => $request->user()->id,
+            'task_channel_id' => $data['task_channel_id'] ?? null,
             'version' => $version,
-            'disk' => $disk,
-            'path' => $path,
-            'original_name' => $file->getClientOriginalName(),
-            'mime' => $file->getMimeType(),
-            'size' => $file->getSize(),
-        ]);
+        ];
+
+        if ($request->hasFile('file')) {
+            $file = $request->file('file');
+            $disk = config('studio.assets_disk');
+
+            $task->assets()->create([
+                ...$common,
+                'kind' => 'file',
+                'disk' => $disk,
+                'path' => $file->store("tasks/{$task->id}", $disk),
+                'original_name' => $file->getClientOriginalName(),
+                'mime' => $file->getMimeType(),
+                'size' => $file->getSize(),
+            ]);
+        } else {
+            $task->assets()->create([...$common, 'kind' => 'link', 'url' => $data['url']]);
+        }
+
         $task->log($request->user(), 'asset', ['version' => $version]);
 
-        // A fresh visual on a task that was sent back goes straight to review.
+        // Fresh work on a task that was open or sent back goes straight to review.
         if (in_array($task->status, ['todo', 'in_progress', 'revision'], true)) {
             $this->changeStatus($request->user(), $task, 'review');
         }
 
-        return back()->with('ok', "ვიზუალი v{$version} აიტვირთა და გაიგზავნა დასადასტურებლად.");
+        return back()->with('ok', "v{$version} დაემატა და გაიგზავნა დასადასტურებლად.");
     }
 
     public function asset(TaskAsset $asset): StreamedResponse
     {
+        abort_if($asset->isLink() || ! $asset->path, 404);
         $storage = Storage::disk($asset->disk);
         abort_unless($storage->exists($asset->path), 404);
 

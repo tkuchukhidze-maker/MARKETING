@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&family=Noto+Sans+Georgian:wght@400;500;600;700;800&display=swap">
-    <link rel="stylesheet" href="{{ asset('css/studio.css') }}?v=1">
+    <link rel="stylesheet" href="{{ asset('css/studio.css') }}?v=2">
 </head>
 <body>
 @php($navVenues = \App\Models\Venue::orderBy('sort')->get())
@@ -61,6 +61,26 @@
     </main>
 </div>
 <script>
+    // platform picker: "all" toggles every platform, a format is only sent for chosen ones
+    document.querySelectorAll('[data-channels]').forEach(function (box) {
+        var all = box.querySelector('[data-all]');
+        var picks = Array.prototype.slice.call(box.querySelectorAll('[data-platform]'));
+        function sync() {
+            picks.forEach(function (p) {
+                var row = p.closest('.channel-row');
+                row.classList.toggle('is-on', p.checked);
+                row.querySelector('[data-format]').disabled = !p.checked;
+            });
+            all.checked = picks.every(function (p) { return p.checked; });
+        }
+        all.addEventListener('change', function () {
+            picks.forEach(function (p) { p.checked = all.checked; });
+            sync();
+        });
+        picks.forEach(function (p) { p.addEventListener('change', sync); });
+        sync();
+    });
+
     // close any open <details> menu when clicking elsewhere
     document.addEventListener('click', function (e) {
         document.querySelectorAll('details.menu[open]').forEach(function (d) {

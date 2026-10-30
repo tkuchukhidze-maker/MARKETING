@@ -8,38 +8,94 @@
 
 <header class="page-head">
     <h1><span class="venue-badge" style="background: {{ $task->venue->color }}"></span>{{ $task->title }}</h1>
-    <span class="pill" style="{{ Studio::platformStyle($task->platform) }}">{{ Studio::platformLabel($task->platform) }}{{ $task->format ? ' · '.$task->format : '' }}</span>
+    @foreach ($task->channels as $ch)
+        <span class="pill" style="{{ Studio::platformStyle($ch->platform) }}">{{ $ch->label() }}</span>
+    @endforeach
     <span class="pill" style="{{ Studio::statusStyle($task->status) }}">{{ Studio::statusLabel($task->status) }}</span>
 </header>
 
 <div class="cols">
     <div class="main">
         <section class="panel">
-            <h2>ვიზუალები</h2>
+            <h2>ბრიფი</h2>
+            @if ($task->brief)
+                <p style="margin: 0 0 12px; white-space: pre-line">{{ $task->brief }}</p>
+            @else
+                <p style="margin: 0 0 12px; color: var(--muted)">ბრიფი არ არის დაწერილი.</p>
+            @endif
+            <div class="chips" style="justify-content: flex-start; padding: 0; margin-bottom: 12px">
+                @foreach ($task->channels as $ch)
+                    <span class="chip" style="{{ Studio::platformStyle($ch->platform) }}">{{ Studio::platformLabel($ch->platform) }} — {{ $ch->format ?: 'ფორმატი არ არის არჩეული' }}</span>
+                @endforeach
+            </div>
+            <h3 style="margin: 0 0 8px; font-size: 14px">რეფერენსები</h3>
+            @if ($task->reference_links)
+                <ul class="refs">
+                    @foreach ($task->reference_links as $ref)
+                        <li><a href="{{ $ref }}" target="_blank" rel="noopener noreferrer"><b>{{ parse_url($ref, PHP_URL_HOST) }}</b><span style="color: var(--muted)">{{ \Illuminate\Support\Str::limit($ref, 70) }}</span></a></li>
+                    @endforeach
+                </ul>
+            @else
+                <p style="margin: 0; color: var(--muted)">რეფერენსი არ არის დამატებული — „დეტალებში“ ჩასვი.</p>
+            @endif
+        </section>
+
+        <section class="panel">
+            <h2>მზა ნამუშევარი</h2>
             @if ($task->assets->isNotEmpty())
                 <div class="assets" style="margin-bottom: 14px">
                     @foreach ($task->assets as $asset)
-                        <a class="asset {{ $loop->first ? 'latest' : '' }}" href="{{ route('assets.show', $asset) }}" target="_blank" rel="noopener">
-                            <div class="thumb">
-                                @if ($asset->isImage())
-                                    <img src="{{ route('assets.show', $asset) }}" alt="ვიზუალი v{{ $asset->version }}" loading="lazy">
-                                @elseif ($asset->isVideo())
-                                    <video src="{{ route('assets.show', $asset) }}" muted preload="metadata"></video>
-                                @else
-                                    <span>{{ strtoupper(pathinfo($asset->original_name, PATHINFO_EXTENSION)) }}</span>
-                                @endif
-                            </div>
-                            <small><b>v{{ $asset->version }}</b> · {{ $asset->user?->name ?? '—' }} · {{ $asset->created_at->format('d.m H:i') }}</small>
+                        <a class="asset {{ $loop->first ? 'latest' : '' }}" href="{{ $asset->href() }}" target="_blank" rel="noopener noreferrer">
+                            @if ($asset->isLink() && ! $asset->isImage())
+                                <div class="link-card">
+                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg>
+                                    {{ $asset->host() }}
+                                    <small>გახსნა ბმულით</small>
+                                </div>
+                            @else
+                                <div class="thumb">
+                                    @if ($asset->isImage())
+                                        <img src="{{ $asset->href() }}" alt="ნამუშევარი v{{ $asset->version }}" loading="lazy">
+                                    @elseif ($asset->isVideo())
+                                        <video src="{{ $asset->href() }}" muted preload="metadata"></video>
+                                    @else
+                                        <span>{{ strtoupper(pathinfo((string) $asset->original_name, PATHINFO_EXTENSION)) }}</span>
+                                    @endif
+                                </div>
+                            @endif
+                            <small>
+                                <b>v{{ $asset->version }}</b>
+                                @if ($asset->channel)<span class="chip" style="{{ Studio::platformStyle($asset->channel->platform) }}">{{ Studio::platformLabel($asset->channel->platform) }}</span>@else · ყველასთვის @endif
+                                <br>{{ $asset->user?->name ?? '—' }} · {{ $asset->created_at->format('d.m H:i') }}
+                            </small>
                         </a>
                     @endforeach
                 </div>
             @endif
-            <form class="drop" method="post" action="{{ route('tasks.upload', $task) }}" enctype="multipart/form-data">
+
+            <div class="handin-tabs" role="tablist" aria-label="ჩაბარების ხერხი">
+                <button class="btn sm is-on" type="button" role="tab" aria-selected="true" data-handin="file">ფაილის ატვირთვა</button>
+                <button class="btn sm" type="button" role="tab" aria-selected="false" data-handin="link">ბმულით (Drive, Figma, Canva…)</button>
+            </div>
+            <form class="drop" method="post" action="{{ route('tasks.upload', $task) }}" enctype="multipart/form-data" data-handin-form>
                 @csrf
-                <label class="field" style="flex: 1 1 260px">ახალი ვერსიის ატვირთვა (JPG, PNG, WEBP, MP4, MOV, PDF — 100MB-მდე)
-                    <input type="file" name="file" required accept="image/*,video/mp4,video/quicktime,application/pdf">
+                <label class="field" style="flex: 1 1 260px" data-handin-pane="file">ფაილი (JPG, PNG, WEBP, MP4, MOV, PDF — 100MB-მდე)
+                    <input type="file" name="file" accept="image/*,video/mp4,video/quicktime,application/pdf">
                 </label>
-                <button class="btn primary" type="submit">ატვირთვა და გაგზავნა</button>
+                <label class="field" style="flex: 1 1 260px" data-handin-pane="link" hidden>მზა პროდუქტის ბმული
+                    <input type="url" name="url" placeholder="https://drive.google.com/…" maxlength="2048" value="{{ old('url') }}">
+                </label>
+                @if ($task->channels->count() > 1)
+                    <label class="field" style="flex: 0 1 220px">რომელი ქსელისთვის
+                        <select name="task_channel_id">
+                            <option value="">ყველასთვის</option>
+                            @foreach ($task->channels as $ch)
+                                <option value="{{ $ch->id }}">{{ $ch->label() }}</option>
+                            @endforeach
+                        </select>
+                    </label>
+                @endif
+                <button class="btn primary" type="submit">გაგზავნა დასადასტურებლად</button>
             </form>
         </section>
 
@@ -73,17 +129,11 @@
                 <label class="field">სათაური
                     <input name="title" required maxlength="200" value="{{ old('title', $task->title) }}">
                 </label>
+                @include('partials.channel-fields', [
+                    'selected' => $task->channels->pluck('format', 'platform')->all(),
+                    'uid' => 'edit',
+                ])
                 <div class="form-grid">
-                    <label class="field">პლატფორმა
-                        <select name="platform" required>
-                            @foreach (Studio::PLATFORMS as $key => [$label])
-                                <option value="{{ $key }}" @selected($task->platform === $key)>{{ $label }}</option>
-                            @endforeach
-                        </select>
-                    </label>
-                    <label class="field">ფორმატი
-                        <input name="format" maxlength="60" value="{{ old('format', $task->format) }}">
-                    </label>
                     <label class="field">შემსრულებელი
                         <select name="assignee_id">
                             <option value="">— არავინ</option>
@@ -101,6 +151,9 @@
                 </div>
                 <label class="field">ბრიფი
                     <textarea name="brief" maxlength="5000">{{ old('brief', $task->brief) }}</textarea>
+                </label>
+                <label class="field">რეფერენსის ბმულები <small style="font-weight: 400; color: var(--muted)">თითო ბმული ახალ ხაზზე</small>
+                    <textarea name="reference_links" maxlength="5000" style="min-height: 70px" placeholder="https://…">{{ old('reference_links', implode("\n", $task->reference_links ?? [])) }}</textarea>
                 </label>
                 <div><button class="btn primary" type="submit">შენახვა</button></div>
             </form>
@@ -180,4 +233,31 @@
         @endif
     </div>
 </div>
+@push('scripts')
+<script>
+    (function () {
+        var form = document.querySelector('[data-handin-form]');
+        if (!form) return;
+        var tabs = document.querySelectorAll('[data-handin]');
+        function show(mode) {
+            tabs.forEach(function (t) {
+                var on = t.getAttribute('data-handin') === mode;
+                t.classList.toggle('is-on', on);
+                t.setAttribute('aria-selected', on ? 'true' : 'false');
+            });
+            form.querySelectorAll('[data-handin-pane]').forEach(function (p) {
+                var on = p.getAttribute('data-handin-pane') === mode;
+                p.hidden = !on;
+                var input = p.querySelector('input');
+                input.required = on;
+                if (!on) input.value = '';
+            });
+        }
+        tabs.forEach(function (t) {
+            t.addEventListener('click', function () { show(t.getAttribute('data-handin')); });
+        });
+        show({{ old('url') ? "'link'" : "'file'" }});
+    })();
+</script>
+@endpush
 @endsection

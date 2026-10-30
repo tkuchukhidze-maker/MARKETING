@@ -95,12 +95,17 @@ class Insights
     public function emptyDays(Venue $venue, Carbon $from, int $days): array
     {
         $to = $from->copy()->addDays($days);
-        $taken = Task::where('venue_id', $venue->id)
+        $tasks = Task::where('venue_id', $venue->id)->with('channels')
             ->whereNotNull('publish_at')
             ->whereBetween('publish_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])
-            ->get(['platform', 'publish_at'])
-            ->groupBy('platform')
-            ->map(fn ($tasks) => $tasks->map(fn ($t) => $t->publish_at->toDateString())->unique()->all());
+            ->get(['id', 'publish_at']);
+
+        $taken = [];
+        foreach ($tasks as $t) {
+            foreach ($t->channels as $c) {
+                $taken[$c->platform][] = $t->publish_at->toDateString();
+            }
+        }
 
         $result = [];
         foreach (array_keys(Studio::PLATFORMS) as $platform) {

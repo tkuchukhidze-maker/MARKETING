@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
-    'venue_id', 'title', 'platform', 'format', 'brief', 'status',
+    'venue_id', 'title', 'brief', 'reference_links', 'status',
     'assignee_id', 'creator_id', 'approved_by', 'approved_at', 'due_on', 'publish_at',
 ])]
 class Task extends Model
@@ -21,7 +21,43 @@ class Task extends Model
             'due_on' => 'date',
             'publish_at' => 'datetime',
             'approved_at' => 'datetime',
+            'reference_links' => 'array',
         ];
+    }
+
+    public function channels(): HasMany
+    {
+        return $this->hasMany(TaskChannel::class)->orderByRaw(
+            "case platform when 'facebook' then 1 when 'instagram' then 2 when 'story' then 3 else 4 end"
+        );
+    }
+
+    public function hasPlatform(string $platform): bool
+    {
+        return $this->channels->contains('platform', $platform);
+    }
+
+    /** Only tasks made for the given platform. */
+    public function scopeForPlatform(Builder $query, string $platform): Builder
+    {
+        return $query->whereHas('channels', fn ($q) => $q->where('platform', $platform));
+    }
+
+    /**
+     * Replace the task's platforms with the given platform => format map,
+     * keeping rows (and the visuals tied to them) for platforms that stay.
+     *
+     * @param  array<string, ?string>  $map
+     */
+    public function syncChannels(array $map): void
+    {
+        $this->channels()->whereNotIn('platform', array_keys($map))->delete();
+
+        foreach ($map as $platform => $format) {
+            $this->channels()->updateOrCreate(['platform' => $platform], ['format' => $format ?: null]);
+        }
+
+        $this->unsetRelation('channels');
     }
 
     public function venue(): BelongsTo

@@ -23,14 +23,16 @@ class StudioTest extends TestCase
         $this->batumi = Venue::where('slug', 'batumi')->firstOrFail();
     }
 
-    private function task(array $attrs = []): Task
+    private function task(array $attrs = [], array $channels = ['instagram' => 'Reels']): Task
     {
-        return $this->batumi->tasks()->create([
+        $task = $this->batumi->tasks()->create([
             'title' => 'ბოშური საღამო — ანონსი',
-            'platform' => 'instagram',
             'status' => 'todo',
             ...$attrs,
         ]);
+        $task->syncChannels($channels);
+
+        return $task;
     }
 
     public function test_guests_are_sent_to_login(): void
@@ -62,13 +64,79 @@ class StudioTest extends TestCase
 
         $this->actingAs($user)->post(route('tasks.store', $this->batumi), [
             'title' => 'ია თომაშის საღამო',
-            'platform' => 'facebook',
+            'platforms' => ['facebook', 'instagram'],
+            'formats' => ['facebook' => 'პოსტერი', 'instagram' => 'პოსტი 4:5', 'story' => 'ignored'],
+            'reference_links' => "https://pinterest.com/pin/1\n\nhttps://www.behance.net/x",
         ])->assertRedirect(route('board', $this->batumi));
 
-        $this->assertDatabaseHas('tasks', ['title' => 'ია თომაშის საღამო', 'creator_id' => $user->id, 'status' => 'todo']);
+        $task = Task::where('title', 'ია თომაშის საღამო')->firstOrFail();
+        $this->assertSame($user->id, $task->creator_id);
+        $this->assertSame(['facebook' => 'პოსტერი', 'instagram' => 'პოსტი 4:5'], $task->channels->pluck('format', 'platform')->all());
+        $this->assertSame(['https://pinterest.com/pin/1', 'https://www.behance.net/x'], $task->reference_links);
 
         $this->get(route('board', [$this->batumi, 'platform' => 'story']))->assertOk()->assertDontSee('ია თომაშის საღამო');
-        $this->get(route('board', [$this->batumi, 'platform' => 'facebook']))->assertOk()->assertSee('ია თომაშის საღამო');
+        $this->get(route('board', [$this->batumi, 'platform' => 'instagram']))->assertOk()->assertSee('ია თომაშის საღამო');
+        $this->get(route('board', [$this->batumi, 'platform' => 'facebook']))->assertOk()->assertSee('პოსტერი');
+    }
+
+    public function test_task_needs_a_platform_and_valid_reference_links(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)->post(route('tasks.store', $this->batumi), ['title' => 'x'])
+            ->assertSessionHasErrors('platforms');
+        $this->post(route('tasks.store', $this->batumi), ['title' => 'x', 'platforms' => ['story'], 'reference_links' => 'not a link'])
+            ->assertSessionHasErrors('reference_links');
+        $this->assertDatabaseCount('tasks', 0);
+    }
+
+    public function test_editing_platforms_keeps_the_ones_that_stay(): void
+    {
+        $task = $this->task([], ['facebook' => 'პოსტი', 'instagram' => 'Reels']);
+        $keptId = $task->channels()->where('platform', 'instagram')->value('id');
+
+        $this->actingAs(User::factory()->create())->put(route('tasks.update', $task), [
+            'title' => $task->title,
+            'platforms' => ['instagram', 'story'],
+            'formats' => ['instagram' => 'კარუსელი', 'story' => 'სთორი 9:16'],
+        ])->assertRedirect();
+
+        $task->refresh();
+        $this->assertSame(['instagram', 'story'], $task->channels->pluck('platform')->all());
+        $this->assertSame($keptId, $task->channels->firstWhere('platform', 'instagram')->id);
+        $this->assertSame('კარუსელი', $task->channels->firstWhere('platform', 'instagram')->format);
+    }
+
+    public function test_finished_work_can_be_handed_in_as_a_link_for_one_platform(): void
+    {
+        $task = $this->task([], ['facebook' => 'პოსტერი', 'story' => 'სთორი 9:16']);
+        $story = $task->channels()->where('platform', 'story')->first();
+
+        $this->actingAs(User::factory()->role('designer')->create())->post(route('tasks.upload', $task), [
+            'url' => 'https://drive.google.com/file/d/abc/view',
+            'task_channel_id' => $story->id,
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $asset = $task->assets()->first();
+        $this->assertTrue($asset->isLink());
+        $this->assertSame($story->id, $asset->task_channel_id);
+        $this->assertSame('review', $task->fresh()->status);
+
+        $this->get(route('tasks.show', $task))->assertOk()->assertSee('drive.google.com');
+        $this->get(route('assets.show', $asset))->assertNotFound();
+    }
+
+    public function test_hand_in_rejects_a_foreign_platform_and_empty_submissions(): void
+    {
+        $task = $this->task();
+        $other = $this->task(['title' => 'სხვა'], ['facebook' => null]);
+        $user = User::factory()->create();
+
+        $this->actingAs($user)->post(route('tasks.upload', $task), [])->assertSessionHasErrors(['file', 'url']);
+        $this->post(route('tasks.upload', $task), [
+            'url' => 'https://figma.com/x',
+            'task_channel_id' => $other->channels()->first()->id,
+        ])->assertSessionHasErrors('task_channel_id');
     }
 
     public function test_designer_cannot_approve_but_manager_can(): void

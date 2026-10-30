@@ -34,25 +34,24 @@ class DemoSeeder extends Seeder
         $kutaisi = Venue::where('slug', 'kutaisi')->firstOrFail();
         $monday = today()->startOfWeek();
 
+        $all = ['facebook' => 'პოსტერი', 'instagram' => 'პოსტი 4:5', 'story' => 'სთორი 9:16'];
         $rows = [
-            [$batumi, 'instagram', 'Reels', 'ბოშური საღამო — ანონსი', 'designer', 'review', 1],
-            [$batumi, 'facebook', 'პოსტერი', 'ია თომაშის საღამო', 'designer', 'review', 3],
-            [$batumi, 'story', '3 სთორი', 'გიორგი ფრუიძის საღამო', 'designer', 'in_progress', 2],
-            [$batumi, 'instagram', 'კარუსელი', 'ახალი მენიუს ფოტოები', 'photographer', 'todo', 4],
-            [$batumi, 'facebook', 'პოსტი', 'კვირის განრიგი', 'copywriter', 'approved', 0],
-            [$kutaisi, 'story', 'სთორი', 'ინტერიერის სთორი', 'designer', 'revision', 0],
-            [$kutaisi, 'instagram', 'პოსტი', 'სტუმრების შეფასებები', 'smm', 'review', 1],
-            [$kutaisi, 'facebook', 'პოსტერი', 'კვირის აფიშა', null, 'todo', 2],
-            [$kutaisi, 'story', 'სთორი', 'დღის კერძი', 'photographer', 'todo', 3],
-            [$kutaisi, 'facebook', 'პოსტი', 'კვირის მენიუ', 'copywriter', 'published', 0],
+            [$batumi, ['instagram' => 'Reels', 'story' => 'ვიდეო სთორი'], 'ბოშური საღამო — ანონსი', 'designer', 'review', 1],
+            [$batumi, $all, 'ია თომაშის საღამო', 'designer', 'review', 3],
+            [$batumi, ['story' => 'სთორის სერია'], 'გიორგი ფრუიძის საღამო', 'designer', 'in_progress', 2],
+            [$batumi, ['instagram' => 'კარუსელი', 'facebook' => 'კარუსელი'], 'ახალი მენიუს ფოტოები', 'photographer', 'todo', 4],
+            [$batumi, ['facebook' => 'პოსტი'], 'კვირის განრიგი', 'copywriter', 'approved', 0],
+            [$kutaisi, ['story' => 'სთორი 9:16'], 'ინტერიერის სთორი', 'designer', 'revision', 0],
+            [$kutaisi, ['instagram' => 'პოსტი 1:1'], 'სტუმრების შეფასებები', 'smm', 'review', 1],
+            [$kutaisi, $all, 'კვირის აფიშა', null, 'todo', 2],
+            [$kutaisi, ['story' => 'სთორი 9:16'], 'დღის კერძი', 'photographer', 'todo', 3],
+            [$kutaisi, ['facebook' => 'პოსტი'], 'კვირის მენიუ', 'copywriter', 'published', 0],
         ];
 
-        foreach ($rows as [$venue, $platform, $format, $title, $role, $status, $day]) {
-            Task::firstOrCreate(
+        foreach ($rows as [$venue, $channels, $title, $role, $status, $day]) {
+            $task = Task::firstOrCreate(
                 ['venue_id' => $venue->id, 'title' => $title],
                 [
-                    'platform' => $platform,
-                    'format' => $format,
                     'status' => $status,
                     'assignee_id' => $role ? $team[$role]->id : null,
                     'creator_id' => $team['smm']->id,
@@ -60,6 +59,10 @@ class DemoSeeder extends Seeder
                     'publish_at' => $monday->copy()->addDays($day)->setTime(19, 0),
                 ],
             );
+
+            if ($task->wasRecentlyCreated) {
+                $task->syncChannels($channels);
+            }
         }
 
         Contact::firstOrCreate(['name' => 'გიორგი ფრუიძე'], ['venue_id' => $batumi->id, 'type' => 'artist']);

@@ -62,7 +62,7 @@
                 <thead>
                 <tr>
                     <th scope="col" style="width: 34%">დავალება</th>
-                    <th scope="col">პლატფორმა</th>
+                    <th scope="col" style="width: 22%">პლატფორმა · ფორმატი</th>
                     <th scope="col">შემსრულებელი</th>
                     <th scope="col" style="width: 150px">სტატუსი</th>
                     <th scope="col">ვადა</th>
@@ -75,12 +75,18 @@
                         <td class="name">
                             <a href="{{ route('tasks.show', $task) }}">{{ $task->title }}</a>
                             <span class="meta">
-                                @if ($task->format)<span>{{ $task->format }}</span>@endif
+                                @if ($task->reference_links)<span>რეფერენსი {{ count($task->reference_links) }}</span>@endif
                                 @if ($task->assets_count)<span>ვიზუალი {{ $task->assets_count }}</span>@endif
                                 @if ($task->comments_count)<span>კომენტარი {{ $task->comments_count }}</span>@endif
                             </span>
                         </td>
-                        <td><div class="cell-fill" style="{{ Studio::platformStyle($task->platform) }}">{{ Studio::platformLabel($task->platform) }}</div></td>
+                        <td>
+                            <div class="chips">
+                                @foreach ($task->channels as $ch)
+                                    <span class="chip" style="{{ Studio::platformStyle($ch->platform) }}" title="{{ $ch->label() }}">{{ Studio::platformLabel($ch->platform) }}{{ $ch->format ? ' · '.$ch->format : '' }}</span>
+                                @endforeach
+                            </div>
+                        </td>
                         <td>
                             <details class="menu">
                                 <summary class="cell-fill" aria-label="შემსრულებლის შეცვლა">
@@ -132,17 +138,8 @@
         <label class="field">სათაური
             <input name="title" required maxlength="200" value="{{ old('title') }}">
         </label>
+        @include('partials.channel-fields', ['selected' => $platform ? [$platform => null] : [], 'uid' => 'new'])
         <div class="form-grid">
-            <label class="field">პლატფორმა
-                <select name="platform" required>
-                    @foreach (Studio::PLATFORMS as $key => [$label])
-                        <option value="{{ $key }}" @selected(($platform ?? old('platform')) === $key)>{{ $label }}</option>
-                    @endforeach
-                </select>
-            </label>
-            <label class="field">ფორმატი
-                <input name="format" maxlength="60" placeholder="Reels, პოსტერი, კარუსელი…" value="{{ old('format') }}">
-            </label>
             <label class="field">შემსრულებელი
                 <select name="assignee_id">
                     <option value="">— არავინ</option>
@@ -161,6 +158,9 @@
         <label class="field">ბრიფი
             <textarea name="brief" maxlength="5000" placeholder="რა უნდა იყოს ვიზუალზე, ტექსტი, CTA…">{{ old('brief') }}</textarea>
         </label>
+        <label class="field">რეფერენსის ბმულები <small style="font-weight: 400; color: var(--muted)">თითო ბმული ახალ ხაზზე — Pinterest, Instagram, Behance, Drive…</small>
+            <textarea name="reference_links" maxlength="5000" style="min-height: 70px" placeholder="https://…">{{ old('reference_links') }}</textarea>
+        </label>
         @if ($venue->concept)
             <p style="margin: 0; color: var(--muted); font-size: 13px; white-space: pre-line"><b>კონცეფცია:</b> {{ $venue->concept }}</p>
         @endif
@@ -170,4 +170,9 @@
         </div>
     </form>
 </dialog>
+@if ($errors->any() && old('title') !== null)
+    @push('scripts')
+        <script>document.getElementById('new-task').showModal();</script>
+    @endpush
+@endif
 @endsection

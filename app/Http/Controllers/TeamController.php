@@ -38,7 +38,7 @@ class TeamController extends Controller
             'open' => $open->where('venue_id', $v->id)->count(),
             'review' => $open->where('venue_id', $v->id)->where('status', 'review')->count(),
             'week' => collect(Studio::PLATFORMS)->map(fn ($d, $k) => $v->tasks()
-                ->where('platform', $k)
+                ->forPlatform($k)
                 ->whereBetween('publish_at', [today()->startOfWeek(), today()->endOfWeek()])
                 ->count()),
         ]);
