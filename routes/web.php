@@ -19,6 +19,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/me', [WorkspaceController::class, 'index'])->name('workspace');
     Route::post('/tasks/{task}/start', [TaskController::class, 'start'])->name('tasks.start');
     Route::post('/tasks/{task}/ready', [TaskController::class, 'ready'])->name('tasks.ready');
+    Route::post('/tasks/{task}/channels/{channel}/publish', [TaskController::class, 'publish'])->name('tasks.publish');
+    Route::delete('/tasks/{task}/channels/{channel}/publish', [TaskController::class, 'unpublish'])->name('tasks.unpublish');
     Route::get('/v/{venue}', [BoardController::class, 'board'])->name('board');
     Route::get('/v/{venue}/calendar', [BoardController::class, 'calendar'])->name('calendar');
 

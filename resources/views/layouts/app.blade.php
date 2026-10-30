@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&family=Noto+Sans+Georgian:wght@400;500;600;700;800&display=swap">
-    <link rel="stylesheet" href="{{ asset('css/studio.css') }}?v=3">
+    <link rel="stylesheet" href="{{ asset('css/studio.css') }}?v=4">
 </head>
 <body>
 @php($navVenues = \App\Models\Venue::orderBy('sort')->get())
@@ -37,11 +37,13 @@
             </nav>
         @endforeach
 
+        @unless (auth()->user()->isMaker())
         <nav aria-label="გუნდი">
             <span class="side-label">გუნდი</span>
             <a class="side-link {{ request()->routeIs('team') ? 'is-active' : '' }}" href="{{ route('team') }}">გუნდი და დატვირთვა</a>
             <a class="side-link {{ request()->routeIs('contacts') ? 'is-active' : '' }}" href="{{ route('contacts') }}">კონტაქტები (CRM)</a>
         </nav>
+        @endunless
 
         <div class="side-user">
             <span class="avatar lg" style="background: {{ auth()->user()->avatar_color }}">{{ auth()->user()->initial() }}</span>

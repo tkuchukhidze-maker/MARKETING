@@ -164,9 +164,9 @@ class StudioTest extends TestCase
         // everyone sees only their own part in their own space
         $this->actingAs($designer)->get('/')->assertRedirect(route('workspace'));
         $this->get(route('workspace'))->assertOk()->assertSee('ია თომაშის საღამო')
-            ->assertSee('<b>ჩემი ნაწილი:</b> პოსტერი', false)
-            ->assertDontSee('<b>ჩემი ნაწილი:</b> ფოტოები', false);
-        $this->actingAs($photographer)->get(route('workspace'))->assertOk()->assertSee('<b>ჩემი ნაწილი:</b> ფოტოები', false);
+            ->assertSee('<b>შენი ნაწილი:</b> პოსტერი', false)
+            ->assertDontSee('<b>შენი ნაწილი:</b> ფოტოები', false);
+        $this->actingAs($photographer)->get(route('workspace'))->assertOk()->assertSee('<b>შენი ნაწილი:</b> ფოტოები', false);
 
         // start → in progress on the board
         $this->actingAs($designer)->post(route('tasks.start', $task))->assertRedirect();
@@ -222,6 +222,63 @@ class StudioTest extends TestCase
         $this->assertSame('in_progress', $task->status, 'still waiting for the copywriter');
 
         $this->get(route('board', $this->batumi))->assertOk()->assertSee('1/2 მზადაა');
+    }
+
+    public function test_admin_and_social_media_manager_approve_and_confirm_publishing_per_platform(): void
+    {
+        $smm = User::factory()->role('smm')->create();
+        $designer = User::factory()->role('designer')->create();
+        $task = $this->task(['status' => 'review', 'publish_at' => now()->subHour()], ['facebook' => 'პოსტერი', 'story' => 'სთორი 9:16']);
+        $fb = $task->channels()->where('platform', 'facebook')->first();
+        $story = $task->channels()->where('platform', 'story')->first();
+
+        // the designer can neither approve nor confirm publishing
+        $this->actingAs($designer)->post(route('tasks.approve', $task))->assertForbidden();
+        $this->post(route('tasks.publish', [$task, $fb]))->assertForbidden();
+
+        // the social media manager approves
+        $this->actingAs($smm)->post(route('tasks.approve', $task))->assertRedirect();
+        $this->assertSame('approved', $task->fresh()->status);
+
+        // the board reminds that it's past time and not confirmed live
+        $this->get(route('board', $this->batumi))->assertSee('დაადასტურე: Facebook, Story');
+
+        // confirm Facebook with the post link: not finished until Story too
+        $this->post(route('tasks.publish', [$task, $fb]), ['post_url' => 'https://facebook.com/batumissakhlshi/posts/1'])->assertRedirect();
+        $this->assertSame('approved', $task->fresh()->status);
+        $this->assertSame('https://facebook.com/batumissakhlshi/posts/1', $fb->fresh()->post_url);
+        $this->assertSame($smm->id, $fb->fresh()->published_by);
+
+        // the admin confirms Story → the task is published
+        $admin = User::where('role', 'admin')->first();
+        $this->actingAs($admin)->post(route('tasks.publish', [$task, $story]))->assertRedirect();
+        $this->assertSame('published', $task->fresh()->status);
+        $this->get(route('tasks.show', $task))->assertOk()->assertSee('✓ გამოქვეყნდა');
+
+        // undo one → back to approved
+        $this->delete(route('tasks.unpublish', [$task, $story]))->assertRedirect();
+        $this->assertSame('approved', $task->fresh()->status);
+    }
+
+    public function test_designer_workspace_has_everything_on_the_card(): void
+    {
+        $designer = User::factory()->role('designer')->create();
+        $task = $this->task([
+            'status' => 'in_progress',
+            'brief' => 'ბოშური საღამოს ანონსი, თარიღი დიდად',
+            'reference_links' => ['https://pinterest.com/pin/9'],
+        ], ['instagram' => 'პოსტი 4:5', 'story' => 'სთორი 9:16']);
+        $task->syncAssignments([$designer->id => 'პოსტერი']);
+        $task->startWork($designer);
+
+        $this->actingAs($designer)->get(route('workspace'))->assertOk()
+            ->assertSee('ახლა ვმუშაობ')
+            ->assertSee('ბოშური საღამოს ანონსი, თარიღი დიდად')
+            ->assertSee('1080×1350 px')
+            ->assertSee('1080×1920 px')
+            ->assertSee('pinterest.com')
+            ->assertSee('ატვირთვა და მზადაა')
+            ->assertDontSee('გუნდი და დატვირთვა');
     }
 
     public function test_designer_cannot_approve_but_manager_can(): void

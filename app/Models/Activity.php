@@ -38,6 +38,8 @@ class Activity extends Model
             'asset' => 'ატვირთა ვიზუალი v'.($meta['version'] ?? '?'),
             'assigned' => 'შემსრულებლები: '.($meta['to'] ?? '—'),
             'started' => 'დაიწყო მუშაობა',
+            'published_on' => 'დაადასტურა, რომ გამოქვეყნდა: '.Studio::platformLabel($meta['platform'] ?? ''),
+            'unpublished_on' => 'გააუქმა გამოქვეყნება: '.Studio::platformLabel($meta['platform'] ?? ''),
             'ready' => 'მონიშნა „მზადაა“',
             'updated' => 'განაახლა დეტალები',
             default => $this->action,

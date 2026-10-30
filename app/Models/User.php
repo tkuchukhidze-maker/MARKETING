@@ -32,9 +32,24 @@ class User extends Authenticatable
         return $this->hasMany(TaskAssignment::class);
     }
 
+    /**
+     * Approve / send back work and confirm it went live:
+     * the admin (CMO), the marketing lead and the social media manager.
+     */
     public function canApprove(): bool
     {
-        return in_array($this->role, ['admin', 'manager'], true);
+        return in_array($this->role, ['admin', 'manager', 'smm'], true);
+    }
+
+    public function canPublish(): bool
+    {
+        return $this->canApprove();
+    }
+
+    /** Designers, photographers, copywriters: they get the simple workspace. */
+    public function isMaker(): bool
+    {
+        return ! $this->canApprove();
     }
 
     public function isAdmin(): bool

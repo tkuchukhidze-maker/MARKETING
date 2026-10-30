@@ -36,6 +36,7 @@
                             <span>{{ $t->publish_at->format('H:i') }} · <span style="font-weight: 700; color: {{ in_array($t->status, ['approved', 'published']) ? '#00854D' : '#676879' }}">{{ Studio::statusLabel($t->status) }}</span></span>
                             <b>{{ $t->title }}</b>
                             @if ($item['format'])<span>{{ $item['format'] }}</span>@endif
+                            @if ($item['live'])<span style="color: #00854D; font-weight: 700">✓ გამოქვეყნდა</span>@endif
                             @if ($t->channels->count() > 1)<span style="color: var(--muted)">+ {{ $t->channels->count() - 1 }} სხვა ქსელი</span>@endif
                         </a>
                     @endforeach

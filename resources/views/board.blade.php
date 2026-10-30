@@ -83,7 +83,7 @@
                         <td>
                             <div class="chips">
                                 @foreach ($task->channels as $ch)
-                                    <span class="chip" style="{{ Studio::platformStyle($ch->platform) }}" title="{{ $ch->label() }}">{{ Studio::platformLabel($ch->platform) }}{{ $ch->format ? ' · '.$ch->format : '' }}</span>
+                                    <span class="chip" style="{{ Studio::platformStyle($ch->platform) }}" title="{{ $ch->label() }}{{ $ch->isPublished() ? ' — გამოქვეყნდა' : '' }}">{{ $ch->isPublished() ? '✓ ' : '' }}{{ Studio::platformLabel($ch->platform) }}{{ $ch->format ? ' · '.$ch->format : '' }}</span>
                                 @endforeach
                             </div>
                         </td>

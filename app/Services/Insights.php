@@ -49,6 +49,20 @@ class Insights
             ]);
         }
 
+        // 2b. Approved and its time has come, but nobody confirmed it went live
+        $due = Task::query()->where('status', 'approved')->with(['venue', 'channels'])
+            ->when($venue, fn ($q) => $q->where('venue_id', $venue->id))
+            ->whereNotNull('publish_at')->where('publish_at', '<=', now())
+            ->orderBy('publish_at')->limit(3)->get();
+        foreach ($due as $task) {
+            $left = $task->channels->whereNull('published_at')->map(fn ($c) => Studio::platformLabel($c->platform))->join(', ');
+            $hints->push([
+                'tone' => 'warning',
+                'text' => "„{$task->title}“ უნდა გამოქვეყნებულიყო {$task->publish_at->format('d.m H:i')}-ზე — დაადასტურე: {$left}.",
+                'url' => route('tasks.show', $task),
+            ]);
+        }
+
         // 3. Nobody on it
         $unassigned = $open->filter(fn (Task $t) => $t->assignments->isEmpty());
         if ($unassigned->isNotEmpty()) {

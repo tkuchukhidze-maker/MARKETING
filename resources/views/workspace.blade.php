@@ -5,10 +5,10 @@
 
 @section('content')
 <header class="page-head">
-    <h1>ჩემი სივრცე</h1>
+    <h1>გამარჯობა, {{ auth()->user()->name }}</h1>
     <span class="spacer"></span>
     <nav class="tabs" aria-label="რესტორანი" style="margin: 0; border: 0">
-        <a class="tab {{ $venue ? '' : 'is-active' }}" href="{{ route('workspace') }}">ყველა</a>
+        <a class="tab {{ $venue ? '' : 'is-active' }}" href="{{ route('workspace') }}">ორივე სახლი</a>
         @foreach ($venues as $v)
             <a class="tab {{ $venue?->is($v) ? 'is-active' : '' }}" href="{{ route('workspace', ['venue' => $v->slug]) }}">
                 <span class="pf-dot" style="background: {{ $v->color }}"></span>{{ $v->name }}
@@ -16,71 +16,161 @@
         @endforeach
     </nav>
 </header>
-<p style="margin: -6px 0 18px; color: var(--muted)">აქ მხოლოდ შენი ნაწილებია. გაეცანი → „დავიწყე მუშაობა“ → „მზადაა“. საერთო დაფაზე დავალება „დასადასტურებელში“ მაშინ გადადის, როცა ყველა შემსრულებელი მონიშნავს „მზადაა“-ს.</p>
 
-<div style="overflow-x: auto">
-    <div class="ws">
-        @foreach ($columns as $col)
-            <section class="ws-col" style="--tone: {{ $col['color'] }}" aria-label="{{ $col['label'] }}">
-                <header>
-                    <span class="ws-dot"></span>
-                    <h2>{{ $col['label'] }}</h2>
-                    <span class="count">{{ $col['items']->count() }}</span>
-                </header>
+<ol class="steps" aria-label="როგორ მუშაობს">
+    <li><b>1</b> გაეცანი და დააჭირე „დავიწყე“</li>
+    <li><b>2</b> ატვირთე ფაილი ან ჩასვი ბმული</li>
+    <li><b>3</b> „მზადაა“ — წავა დასადასტურებლად</li>
+</ol>
 
-                @forelse ($col['items'] as $a)
-                    @php($t = $a->task)
-                    <article class="ws-card {{ $t->status === 'revision' ? 'is-revision' : '' }}">
-                        <div class="chips" style="justify-content: flex-start; padding: 0">
-                            <span class="chip" style="background: {{ $t->venue->color }}; color: #fff">{{ $t->venue->name }}</span>
+{{-- 1. what I'm working on now: everything needed is on the card --}}
+<section class="ws-section" aria-labelledby="h-working">
+    <h2 id="h-working"><span class="ws-dot" style="--tone: #1F76C2"></span>ახლა ვმუშაობ <span class="count">{{ $working->count() }}</span></h2>
+
+    @forelse ($working as $a)
+        @php($t = $a->task)
+        @php($feedback = $t->status === 'revision' ? $t->comments->first(fn ($c) => $c->user_id !== auth()->id()) : null)
+        <article class="job {{ $t->status === 'revision' ? 'is-revision' : '' }}">
+            <div class="job-main">
+                <div class="job-top">
+                    <span class="chip" style="background: {{ $t->venue->color }}; color: #fff">{{ $t->venue->name }}</span>
+                    <span class="job-due {{ $t->isOverdue() ? 'due-late' : '' }}">ვადა: <b>{{ $t->due_on?->format('d.m') ?? '—' }}</b></span>
+                </div>
+                <h3><a href="{{ route('tasks.show', $t) }}">{{ $t->title }}</a></h3>
+
+                @if ($t->status === 'revision')
+                    <div class="job-feedback" role="note">
+                        <b>შესწორება:</b>
+                        {{ $feedback?->body ?? 'შესწორება მოითხოვეს — ნახე დავალების გვერდი.' }}
+                        @if ($feedback)<small>— {{ $feedback->user?->name }}</small>@endif
+                    </div>
+                @endif
+
+                @if ($a->note)<p class="job-part"><b>შენი ნაწილი:</b> {{ $a->note }}</p>@endif
+
+                <div class="job-formats">
+                    @foreach ($t->channels as $ch)
+                        <div class="fmt" style="--pf: {{ Studio::PLATFORMS[$ch->platform][1] }}">
+                            <b>{{ Studio::platformLabel($ch->platform) }}</b>
+                            <span>{{ $ch->format ?: 'ფორმატი არ არის მითითებული' }}</span>
+                            @if ($size = Studio::sizeFor($ch->platform, $ch->format))<small>{{ $size }} px</small>@endif
+                        </div>
+                    @endforeach
+                </div>
+
+                @if ($t->brief)
+                    <details class="job-brief" open>
+                        <summary>ბრიფი</summary>
+                        <p>{{ $t->brief }}</p>
+                    </details>
+                @endif
+
+                @if ($t->reference_links)
+                    <div class="job-refs">
+                        <span>რეფერენსები:</span>
+                        @foreach ($t->reference_links as $i => $ref)
+                            <a class="btn sm" href="{{ $ref }}" target="_blank" rel="noopener noreferrer">{{ $i + 1 }}. {{ \Illuminate\Support\Str::limit(parse_url($ref, PHP_URL_HOST), 22) }}</a>
+                        @endforeach
+                    </div>
+                @endif
+            </div>
+
+            <form class="job-handin" method="post" action="{{ route('tasks.upload', $t) }}" enctype="multipart/form-data">
+                @csrf
+                <input type="hidden" name="mark_ready" value="1">
+                <b>ჩააბარე ნამუშევარი</b>
+                <label class="drop-zone">
+                    <input type="file" name="file" accept="image/*,video/mp4,video/quicktime,application/pdf">
+                    <span>აირჩიე ფაილი<br><small>JPG, PNG, MP4, PDF · 100MB-მდე</small></span>
+                </label>
+                <label class="field">ან ჩასვი ბმული
+                    <input type="url" name="url" placeholder="Drive / Figma / Canva / Dropbox" maxlength="2048">
+                </label>
+                @if ($t->channels->count() > 1)
+                    <label class="field">რომელი ქსელისთვის
+                        <select name="task_channel_id">
+                            <option value="">ყველასთვის</option>
                             @foreach ($t->channels as $ch)
-                                <span class="chip" style="{{ Studio::platformStyle($ch->platform) }}">{{ Studio::platformLabel($ch->platform) }}{{ $ch->format ? ' · '.$ch->format : '' }}</span>
+                                <option value="{{ $ch->id }}">{{ $ch->label() }}</option>
                             @endforeach
-                        </div>
-                        <a class="ws-title" href="{{ route('tasks.show', $t) }}">{{ $t->title }}</a>
-                        @if ($a->note)<p class="ws-note"><b>ჩემი ნაწილი:</b> {{ $a->note }}</p>@endif
-                        @if ($t->status === 'revision')
-                            <p class="ws-alert">შესწორება მოითხოვეს — ნახე კომენტარები</p>
-                        @endif
-                        <div class="ws-meta">
-                            <span class="{{ $t->isOverdue() ? 'due-late' : '' }}">ვადა: {{ $t->due_on?->format('d.m') ?? '—' }}</span>
-                            @if ($t->assignments->count() > 1)
-                                <span>@include('partials.people', ['task' => $t])</span>
-                            @endif
-                        </div>
-                        <div class="ws-actions">
-                            @if ($a->status === 'assigned')
-                                <a class="btn sm" href="{{ route('tasks.show', $t) }}">გაცნობა</a>
-                                <form method="post" action="{{ route('tasks.start', $t) }}">@csrf
-                                    <button class="btn sm primary" type="submit">დავიწყე მუშაობა</button>
-                                </form>
-                            @elseif ($a->status === 'in_progress')
-                                <a class="btn sm" href="{{ route('tasks.show', $t) }}">ატვირთვა</a>
-                                <form method="post" action="{{ route('tasks.ready', $t) }}">@csrf
-                                    <button class="btn sm ok" type="submit">მზადაა</button>
-                                </form>
-                            @else
-                                <span style="color: var(--muted); font-size: 13px">{{ $t->status === 'review' ? 'ელოდება დადასტურებას' : 'ელოდება დანარჩენებს' }}</span>
-                                <form method="post" action="{{ route('tasks.start', $t) }}">@csrf
-                                    <button class="btn sm ghost" type="submit">დავაბრუნო</button>
-                                </form>
-                            @endif
-                        </div>
-                    </article>
-                @empty
-                    <p class="ws-empty">{{ $col['key'] === 'assigned' ? 'ახალი დავალება არ გაქვს.' : 'ცარიელია' }}</p>
-                @endforelse
-            </section>
-        @endforeach
+                        </select>
+                    </label>
+                @endif
+                <button class="btn ok" type="submit" style="min-height: 46px">ატვირთვა და მზადაა</button>
+                @if ($t->assets_count)
+                    <small style="color: var(--muted)">უკვე ატვირთული: {{ $t->assets_count }} ვერსია</small>
+                @endif
+            </form>
+            <form method="post" action="{{ route('tasks.ready', $t) }}" class="job-ready-only">
+                @csrf
+                <button class="btn sm ghost" type="submit">ატვირთვის გარეშე — უბრალოდ მზადაა</button>
+            </form>
+        </article>
+    @empty
+        <p class="ws-empty">ახლა არაფერზე მუშაობ. აირჩიე ქვემოთ ახალი დავალება და დააჭირე „დავიწყე“.</p>
+    @endforelse
+</section>
+
+{{-- 2. new for me --}}
+<section class="ws-section" aria-labelledby="h-new">
+    <h2 id="h-new"><span class="ws-dot" style="--tone: #676879"></span>ახალი დავალებები <span class="count">{{ $new->count() }}</span></h2>
+    <div class="new-grid">
+        @forelse ($new as $a)
+            @php($t = $a->task)
+            <article class="ws-card">
+                <div class="job-top">
+                    <span class="chip" style="background: {{ $t->venue->color }}; color: #fff">{{ $t->venue->name }}</span>
+                    <span class="job-due {{ $t->isOverdue() ? 'due-late' : '' }}">ვადა: <b>{{ $t->due_on?->format('d.m') ?? '—' }}</b></span>
+                </div>
+                <a class="ws-title" href="{{ route('tasks.show', $t) }}">{{ $t->title }}</a>
+                <div class="chips" style="justify-content: flex-start; padding: 0">
+                    @foreach ($t->channels as $ch)
+                        <span class="chip" style="{{ Studio::platformStyle($ch->platform) }}">{{ Studio::platformLabel($ch->platform) }}{{ $ch->format ? ' · '.$ch->format : '' }}</span>
+                    @endforeach
+                </div>
+                @if ($a->note)<p class="ws-note"><b>შენი ნაწილი:</b> {{ $a->note }}</p>@endif
+                @if ($t->brief)<p class="ws-brief">{{ \Illuminate\Support\Str::limit($t->brief, 140) }}</p>@endif
+                <div class="ws-actions">
+                    <a class="btn sm" href="{{ route('tasks.show', $t) }}">სრულად ნახვა</a>
+                    <form method="post" action="{{ route('tasks.start', $t) }}">@csrf
+                        <button class="btn primary" type="submit">დავიწყე</button>
+                    </form>
+                </div>
+            </article>
+        @empty
+            <p class="ws-empty">ახალი დავალება არ გაქვს.</p>
+        @endforelse
     </div>
-</div>
+</section>
+
+{{-- 3. handed in, waiting --}}
+@if ($sent->isNotEmpty())
+    <section class="ws-section" aria-labelledby="h-sent">
+        <h2 id="h-sent"><span class="ws-dot" style="--tone: #00854D"></span>გაგზავნილი — ელოდება დასტურს <span class="count">{{ $sent->count() }}</span></h2>
+        <ul class="sent-list">
+            @foreach ($sent as $a)
+                <li>
+                    <span class="chip" style="background: {{ $a->task->venue->color }}; color: #fff">{{ $a->task->venue->name }}</span>
+                    <a href="{{ route('tasks.show', $a->task) }}"><b>{{ $a->task->title }}</b></a>
+                    <span style="color: var(--muted)">{{ $a->task->status === 'review' ? 'ელოდება დასტურს' : 'ელოდება დანარჩენებს ('.$a->task->readyCount().'/'.$a->task->assignments->count().')' }}</span>
+                    <form method="post" action="{{ route('tasks.start', $a->task) }}">@csrf
+                        <button class="btn sm ghost" type="submit">დავაბრუნო მუშაობაში</button>
+                    </form>
+                </li>
+            @endforeach
+        </ul>
+    </section>
+@endif
 
 @if ($done->isNotEmpty())
-    <section class="panel" style="margin-top: 22px">
-        <h2>ბოლოს დადასტურებული</h2>
-        <ul class="timeline">
+    <section class="ws-section" aria-labelledby="h-done">
+        <h2 id="h-done"><span class="ws-dot" style="--tone: #6E3FD1"></span>ბოლოს დადასტურებული</h2>
+        <ul class="sent-list">
             @foreach ($done as $a)
-                <li><a href="{{ route('tasks.show', $a->task) }}"><b>{{ $a->task->title }}</b></a> · {{ $a->task->venue->name }} · {{ Studio::statusLabel($a->task->status) }}</li>
+                <li>
+                    <a href="{{ route('tasks.show', $a->task) }}"><b>{{ $a->task->title }}</b></a>
+                    <span style="color: var(--muted)">{{ $a->task->venue->name }} · {{ Studio::statusLabel($a->task->status) }}</span>
+                </li>
             @endforeach
         </ul>
     </section>

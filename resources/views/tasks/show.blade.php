@@ -209,7 +209,7 @@
             @if ($task->status === 'approved' || $task->status === 'published')
                 <p style="margin: 0">დაადასტურა {{ $task->approver?->name ?? '—' }} · {{ $task->approved_at?->format('d.m H:i') }}</p>
             @elseif ($task->status === 'review')
-                <p style="margin: 0">ვიზუალი მზადაა და ელოდება მარკეტინგის ხელმძღვანელის პასუხს.</p>
+                <p style="margin: 0">ნამუშევარი მზადაა და ელოდება დასტურს — ადმინი/CMO ან სოც. მედია მენეჯერი.</p>
             @elseif ($task->status === 'revision')
                 <p style="margin: 0">შესწორება მოთხოვნილია. ახალი ვერსიის ატვირთვა დავალებას თავიდან გაგზავნის დასადასტურებლად.</p>
             @else
@@ -230,6 +230,50 @@
             @endif
         </section>
 
+        @if (in_array($task->status, ['approved', 'published'], true))
+            <section class="panel publish-box">
+                <h2>გამოქვეყნდა? <small style="font-weight: 500; color: var(--muted)">{{ $task->publishedCount() }}/{{ $task->channels->count() }}</small></h2>
+                @if ($task->publish_at)
+                    <p style="margin: 0 0 10px; color: var(--muted)">დაგეგმილი: {{ $task->publish_at->format('d.m.Y H:i') }}</p>
+                @endif
+                @foreach ($task->channels as $ch)
+                    <div class="publish-row {{ $ch->isPublished() ? 'is-done' : '' }}" style="--pf: {{ Studio::PLATFORMS[$ch->platform][1] }}">
+                        <div class="publish-head">
+                            <span class="chip" style="{{ Studio::platformStyle($ch->platform) }}">{{ $ch->label() }}</span>
+                            @if ($ch->isPublished())
+                                <span class="publish-ok">✓ გამოქვეყნდა</span>
+                            @else
+                                <span style="color: var(--muted); font-size: 13px">ჯერ არ არის დადასტურებული</span>
+                            @endif
+                        </div>
+                        @if ($ch->isPublished())
+                            <small style="color: var(--muted)">{{ $ch->publisher?->name ?? '—' }} · {{ $ch->published_at->format('d.m H:i') }}</small>
+                            @if ($ch->post_url)
+                                <a href="{{ $ch->post_url }}" target="_blank" rel="noopener noreferrer" style="word-break: break-all">პოსტის ნახვა → {{ parse_url($ch->post_url, PHP_URL_HOST) }}</a>
+                            @endif
+                            @if (auth()->user()->canPublish())
+                                <form method="post" action="{{ route('tasks.unpublish', [$task, $ch]) }}">
+                                    @csrf @method('delete')
+                                    <button class="btn sm ghost" type="submit">გაუქმება</button>
+                                </form>
+                            @endif
+                        @elseif (auth()->user()->canPublish())
+                            <form method="post" action="{{ route('tasks.publish', [$task, $ch]) }}" class="publish-form">
+                                @csrf
+                                <label class="sr-only" for="post-{{ $ch->id }}">{{ Studio::platformLabel($ch->platform) }} — პოსტის ბმული</label>
+                                <input id="post-{{ $ch->id }}" type="url" name="post_url" placeholder="პოსტის ბმული (არასავალდებულო)" maxlength="2048">
+                                <button class="btn sm ok" type="submit">✓ გამოქვეყნდა</button>
+                            </form>
+                        @endif
+                    </div>
+                @endforeach
+                @unless (auth()->user()->canPublish())
+                    <p style="margin: 8px 0 0; color: var(--muted); font-size: 13px">გამოქვეყნებას ადასტურებს ადმინი/CMO ან სოც. მედია მენეჯერი.</p>
+                @endunless
+            </section>
+        @endif
+
+        @if (auth()->user()->canApprove())
         <section class="panel">
             <h2>სტატუსის შეცვლა</h2>
             <form method="post" action="{{ route('tasks.quick', $task) }}" style="display: grid; gap: 6px">
@@ -239,6 +283,7 @@
                 @endforeach
             </form>
         </section>
+        @endif
 
         <section class="panel">
             <h2>ინფორმაცია</h2>

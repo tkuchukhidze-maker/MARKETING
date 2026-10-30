@@ -24,8 +24,8 @@ final class Studio
      */
     public const BOARD_ORDER = ['review', 'revision', 'todo', 'in_progress', 'approved', 'published'];
 
-    /** Statuses only a manager/admin may set. */
-    public const APPROVAL_STATUSES = ['approved', 'revision'];
+    /** Statuses only the admin/CMO, marketing lead or social media manager may set. */
+    public const APPROVAL_STATUSES = ['approved', 'revision', 'published'];
 
     public const PLATFORMS = [
         'facebook'  => ['Facebook',  '#1464D2', '#FFFFFF'],
@@ -40,10 +40,30 @@ final class Studio
         'story'     => ['სთორი 9:16', 'ვიდეო სთორი', 'ანიმირებული სთორი', 'სთორის სერია'],
     ];
 
+    /** Recommended canvas size per format, shown to the designer. */
+    public const FORMAT_SIZES = [
+        'facebook' => [
+            'პოსტი' => '1080×1350', 'პოსტერი' => '1080×1350', 'კარუსელი' => '1080×1080',
+            'ვიდეო' => '1080×1350', 'Reels' => '1080×1920', 'ქავერი' => '1640×624', 'ივენთის ქავერი' => '1920×1005',
+        ],
+        'instagram' => [
+            'პოსტი 1:1' => '1080×1080', 'პოსტი 4:5' => '1080×1350', 'კარუსელი' => '1080×1350',
+            'Reels' => '1080×1920', 'ქავერი (Highlights)' => '1080×1920',
+        ],
+        'story' => [
+            'სთორი 9:16' => '1080×1920', 'ვიდეო სთორი' => '1080×1920', 'ანიმირებული სთორი' => '1080×1920', 'სთორის სერია' => '1080×1920',
+        ],
+    ];
+
+    public static function sizeFor(string $platform, ?string $format): ?string
+    {
+        return $format ? (self::FORMAT_SIZES[$platform][$format] ?? null) : null;
+    }
+
     public const ROLES = [
-        'admin'        => 'ადმინისტრატორი',
+        'admin'        => 'ადმინისტრატორი / CMO',
         'manager'      => 'მარკეტინგის ხელმძღვანელი',
-        'smm'          => 'სოციალური მედია',
+        'smm'          => 'სოციალური მედია მენეჯერი',
         'designer'     => 'გრაფიკული დიზაინერი',
         'copywriter'   => 'კოპირაიტერი',
         'photographer' => 'ფოტოგრაფი',

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Task;
 use App\Models\TaskAsset;
+use App\Models\TaskChannel;
 use App\Models\User;
 use App\Models\Venue;
 use App\Support\Studio;
@@ -164,6 +165,28 @@ class TaskController extends Controller
             : 'შენი ნაწილი მზადაა. დაფაზე გადავა, როცა ყველა შემსრულებელი მონიშნავს „მზადაა“-ს ('.$task->readyCount().'/'.$task->assignments->count().').');
     }
 
+    /** Confirm the post is live on one platform (optionally with its link). */
+    public function publish(Request $request, Task $task, TaskChannel $channel): RedirectResponse
+    {
+        $data = $request->validate([
+            'post_url' => ['nullable', 'url:https,http', 'max:2048'],
+        ], ['post_url.url' => 'პოსტის ბმული არასწორია (უნდა იწყებოდეს https://-ით).']);
+
+        $task->confirmPublished($channel, $request->user(), $data['post_url'] ?? null);
+        $task->refresh();
+
+        return back()->with('ok', $task->status === 'published'
+            ? 'ყველა ქსელზე გამოქვეყნდა — დავალება დასრულებულია.'
+            : Studio::platformLabel($channel->platform).': გამოქვეყნება დადასტურდა.');
+    }
+
+    public function unpublish(Request $request, Task $task, TaskChannel $channel): RedirectResponse
+    {
+        $task->undoPublished($channel, $request->user());
+
+        return back()->with('ok', Studio::platformLabel($channel->platform).': გამოქვეყნება გაუქმდა.');
+    }
+
     private function logPeople(User $by, Task $task, array $before): void
     {
         $task->load('assignments.user');
@@ -310,6 +333,13 @@ class TaskController extends Controller
         if ($status === 'revision') {
             // everyone's part goes back to their own space as "in progress"
             $task->reopenAssignments();
+        }
+
+        if ($status === 'published') {
+            // marked published in one go: confirm every platform not yet confirmed
+            $task->channels()->whereNull('published_at')->update(['published_at' => now(), 'published_by' => $user->id]);
+        } elseif ($from === 'published') {
+            $task->channels()->update(['published_at' => null, 'published_by' => null]);
         }
 
         $task->log($user, match ($status) {

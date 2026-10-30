@@ -218,20 +218,51 @@ class Task extends Model
             return $all;
         }
 
-        // once approved, only a manager can reopen it; others may only publish it
-        if ($this->status === 'approved') {
-            return ['published'];
-        }
-        if ($this->status === 'published') {
+        // approving, sending back and confirming publication belong to the
+        // admin/CMO, the marketing lead and the social media manager
+        if (in_array($this->status, ['approved', 'published'], true)) {
             return [];
         }
 
-        return array_values(array_filter(
-            $all,
-            fn (string $s) => ! in_array($s, Studio::APPROVAL_STATUSES, true)
-                // only an approved task can be marked published by non-approvers
-                && ($s !== 'published' || $this->status === 'approved'),
-        ));
+        return array_values(array_diff($all, Studio::APPROVAL_STATUSES));
+    }
+
+    /**
+     * Confirm the post is live on one platform. When every platform is
+     * confirmed the whole task becomes "published".
+     */
+    public function confirmPublished(TaskChannel $channel, User $by, ?string $postUrl): void
+    {
+        abort_unless($by->canPublish(), 403, 'გამოქვეყნებას ადასტურებს ადმინი/CMO ან სოც. მედია მენეჯერი.');
+        abort_unless($channel->task_id === $this->id, 404);
+        abort_unless(in_array($this->status, ['approved', 'published'], true), 422, 'ჯერ დავალება უნდა დადასტურდეს.');
+
+        $channel->update(['published_at' => now(), 'published_by' => $by->id, 'post_url' => $postUrl ?: $channel->post_url]);
+        $this->log($by, 'published_on', ['platform' => $channel->platform]);
+
+        $this->unsetRelation('channels');
+        if ($this->channels->every(fn (TaskChannel $c) => $c->published_at !== null) && $this->status !== 'published') {
+            $this->moveTo('published', $by);
+        }
+    }
+
+    public function undoPublished(TaskChannel $channel, User $by): void
+    {
+        abort_unless($by->canPublish(), 403);
+        abort_unless($channel->task_id === $this->id, 404);
+
+        $channel->update(['published_at' => null, 'published_by' => null]);
+        $this->log($by, 'unpublished_on', ['platform' => $channel->platform]);
+
+        if ($this->status === 'published') {
+            $this->moveTo('approved', $by);
+        }
+        $this->unsetRelation('channels');
+    }
+
+    public function publishedCount(): int
+    {
+        return $this->channels->whereNotNull('published_at')->count();
     }
 
     public function log(?User $user, string $action, array $meta = []): void

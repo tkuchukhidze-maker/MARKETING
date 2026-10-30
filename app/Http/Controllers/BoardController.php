@@ -96,6 +96,7 @@ class BoardController extends Controller
                     ->map(fn (Task $t) => [
                         'task' => $t,
                         'format' => $t->channels->firstWhere('platform', $platform)?->format,
+                        'live' => (bool) $t->channels->firstWhere('platform', $platform)?->isPublished(),
                     ])
                     ->values()),
             ];
