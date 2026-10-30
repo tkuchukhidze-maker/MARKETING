@@ -67,6 +67,8 @@ class StudioTest extends TestCase
             'platforms' => ['facebook', 'instagram'],
             'formats' => ['facebook' => 'პოსტერი', 'instagram' => 'პოსტი 4:5', 'story' => 'ignored'],
             'reference_links' => "https://pinterest.com/pin/1\n\nhttps://www.behance.net/x",
+            // assigned, so the "no assignee" reminder doesn't mention it on every filter
+            'assignee_id' => $user->id,
         ])->assertRedirect(route('board', $this->batumi));
 
         $task = Task::where('title', 'ია თომაშის საღამო')->firstOrFail();
