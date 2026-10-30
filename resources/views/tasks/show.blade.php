@@ -1,0 +1,183 @@
+@extends('layouts.app')
+@use('App\Support\Studio')
+
+@section('title', $task->title)
+
+@section('content')
+<p style="margin: 0 0 10px"><a href="{{ route('board', $task->venue) }}">← {{ $task->venue->name }}</a></p>
+
+<header class="page-head">
+    <h1><span class="venue-badge" style="background: {{ $task->venue->color }}"></span>{{ $task->title }}</h1>
+    <span class="pill" style="{{ Studio::platformStyle($task->platform) }}">{{ Studio::platformLabel($task->platform) }}{{ $task->format ? ' · '.$task->format : '' }}</span>
+    <span class="pill" style="{{ Studio::statusStyle($task->status) }}">{{ Studio::statusLabel($task->status) }}</span>
+</header>
+
+<div class="cols">
+    <div class="main">
+        <section class="panel">
+            <h2>ვიზუალები</h2>
+            @if ($task->assets->isNotEmpty())
+                <div class="assets" style="margin-bottom: 14px">
+                    @foreach ($task->assets as $asset)
+                        <a class="asset {{ $loop->first ? 'latest' : '' }}" href="{{ route('assets.show', $asset) }}" target="_blank" rel="noopener">
+                            <div class="thumb">
+                                @if ($asset->isImage())
+                                    <img src="{{ route('assets.show', $asset) }}" alt="ვიზუალი v{{ $asset->version }}" loading="lazy">
+                                @elseif ($asset->isVideo())
+                                    <video src="{{ route('assets.show', $asset) }}" muted preload="metadata"></video>
+                                @else
+                                    <span>{{ strtoupper(pathinfo($asset->original_name, PATHINFO_EXTENSION)) }}</span>
+                                @endif
+                            </div>
+                            <small><b>v{{ $asset->version }}</b> · {{ $asset->user?->name ?? '—' }} · {{ $asset->created_at->format('d.m H:i') }}</small>
+                        </a>
+                    @endforeach
+                </div>
+            @endif
+            <form class="drop" method="post" action="{{ route('tasks.upload', $task) }}" enctype="multipart/form-data">
+                @csrf
+                <label class="field" style="flex: 1 1 260px">ახალი ვერსიის ატვირთვა (JPG, PNG, WEBP, MP4, MOV, PDF — 100MB-მდე)
+                    <input type="file" name="file" required accept="image/*,video/mp4,video/quicktime,application/pdf">
+                </label>
+                <button class="btn primary" type="submit">ატვირთვა და გაგზავნა</button>
+            </form>
+        </section>
+
+        <section class="panel">
+            <h2>კომენტარები</h2>
+            @forelse ($task->comments as $comment)
+                <div class="comment">
+                    <span class="avatar" style="background: {{ $comment->user?->avatar_color ?? '#676879' }}">{{ $comment->user?->initial() ?? '?' }}</span>
+                    <div class="bubble">
+                        <b>{{ $comment->user?->name ?? 'წაშლილი მომხმარებელი' }}</b>
+                        <small style="color: var(--muted)"> · {{ $comment->created_at->format('d.m H:i') }}</small>
+                        <p>{{ $comment->body }}</p>
+                    </div>
+                </div>
+            @empty
+                <p style="color: var(--muted); margin-top: 0">ჯერ კომენტარი არ არის.</p>
+            @endforelse
+            <form method="post" action="{{ route('tasks.comment', $task) }}" style="display: flex; flex-direction: column; gap: 8px">
+                @csrf
+                <label class="field">კომენტარი
+                    <textarea name="body" required maxlength="3000" style="min-height: 70px"></textarea>
+                </label>
+                <div><button class="btn" type="submit">დამატება</button></div>
+            </form>
+        </section>
+
+        <section class="panel">
+            <h2>დეტალები</h2>
+            <form method="post" action="{{ route('tasks.update', $task) }}" style="display: flex; flex-direction: column; gap: 12px">
+                @csrf @method('put')
+                <label class="field">სათაური
+                    <input name="title" required maxlength="200" value="{{ old('title', $task->title) }}">
+                </label>
+                <div class="form-grid">
+                    <label class="field">პლატფორმა
+                        <select name="platform" required>
+                            @foreach (Studio::PLATFORMS as $key => [$label])
+                                <option value="{{ $key }}" @selected($task->platform === $key)>{{ $label }}</option>
+                            @endforeach
+                        </select>
+                    </label>
+                    <label class="field">ფორმატი
+                        <input name="format" maxlength="60" value="{{ old('format', $task->format) }}">
+                    </label>
+                    <label class="field">შემსრულებელი
+                        <select name="assignee_id">
+                            <option value="">— არავინ</option>
+                            @foreach ($users as $u)
+                                <option value="{{ $u->id }}" @selected($task->assignee_id === $u->id)>{{ $u->name }} · {{ $u->roleLabel() }}</option>
+                            @endforeach
+                        </select>
+                    </label>
+                    <label class="field">ვადა
+                        <input type="date" name="due_on" value="{{ old('due_on', $task->due_on?->format('Y-m-d')) }}">
+                    </label>
+                    <label class="field">გამოქვეყნება
+                        <input type="datetime-local" name="publish_at" value="{{ old('publish_at', $task->publish_at?->format('Y-m-d\TH:i')) }}">
+                    </label>
+                </div>
+                <label class="field">ბრიფი
+                    <textarea name="brief" maxlength="5000">{{ old('brief', $task->brief) }}</textarea>
+                </label>
+                <div><button class="btn primary" type="submit">შენახვა</button></div>
+            </form>
+        </section>
+    </div>
+
+    <div class="aside">
+        @php($tone = ['review' => '#1F76C2', 'approved' => '#00854D', 'published' => '#6E3FD1', 'revision' => '#D83A52'][$task->status] ?? '#676879')
+        <section class="approve-box" style="background: {{ $tone }}">
+            <h2 style="margin: 0; font-size: 16px">დადასტურება</h2>
+            @if ($task->status === 'approved' || $task->status === 'published')
+                <p style="margin: 0">დაადასტურა {{ $task->approver?->name ?? '—' }} · {{ $task->approved_at?->format('d.m H:i') }}</p>
+            @elseif ($task->status === 'review')
+                <p style="margin: 0">ვიზუალი მზადაა და ელოდება მარკეტინგის ხელმძღვანელის პასუხს.</p>
+            @elseif ($task->status === 'revision')
+                <p style="margin: 0">შესწორება მოთხოვნილია. ახალი ვერსიის ატვირთვა დავალებას თავიდან გაგზავნის დასადასტურებლად.</p>
+            @else
+                <p style="margin: 0">ატვირთე ვიზუალი — დავალება ავტომატურად გადავა „დასადასტურებელში“.</p>
+            @endif
+
+            @if (auth()->user()->canApprove() && ! in_array($task->status, ['approved', 'published'], true))
+                <form method="post" action="{{ route('tasks.approve', $task) }}">
+                    @csrf
+                    <button class="btn" type="submit" style="width: 100%; min-height: 44px; font-weight: 800">დადასტურება</button>
+                </form>
+                <form method="post" action="{{ route('tasks.revision', $task) }}" style="display: flex; flex-direction: column; gap: 8px">
+                    @csrf
+                    <label class="sr-only" for="rev-body">რა უნდა შესწორდეს</label>
+                    <textarea id="rev-body" name="body" maxlength="3000" placeholder="რა უნდა შესწორდეს?" style="min-height: 60px; border-radius: 8px; border: 0; padding: 8px 10px; color: var(--ink)"></textarea>
+                    <button class="btn ghost" type="submit" style="color: #fff; border: 1px solid rgba(255,255,255,.7)">შესწორების მოთხოვნა</button>
+                </form>
+            @endif
+        </section>
+
+        <section class="panel">
+            <h2>სტატუსის შეცვლა</h2>
+            <form method="post" action="{{ route('tasks.quick', $task) }}" style="display: grid; gap: 6px">
+                @csrf @method('patch')
+                @foreach ($allowed as $s)
+                    <button class="btn" type="submit" name="status" value="{{ $s }}" style="{{ Studio::statusStyle($s) }}; border: 0; {{ $s === $task->status ? 'outline: 3px solid #323338; outline-offset: 1px;' : '' }}">{{ Studio::statusLabel($s) }}</button>
+                @endforeach
+            </form>
+        </section>
+
+        <section class="panel">
+            <h2>ინფორმაცია</h2>
+            <dl class="kv">
+                <dt>რესტორანი</dt><dd>{{ $task->venue->name }}</dd>
+                <dt>შემქმნელი</dt><dd>{{ $task->creator?->name ?? '—' }}</dd>
+                <dt>შემსრულებელი</dt><dd>{{ $task->assignee?->name ?? '—' }}</dd>
+                <dt>ვადა</dt><dd class="{{ $task->isOverdue() ? 'due-late' : '' }}">{{ $task->due_on?->format('d.m.Y') ?? '—' }}</dd>
+                <dt>გამოქვეყნება</dt><dd>{{ $task->publish_at?->format('d.m.Y H:i') ?? '—' }}</dd>
+            </dl>
+        </section>
+
+        @if ($task->venue->concept)
+            <section class="panel">
+                <h2>კონცეფცია — {{ $task->venue->name }}</h2>
+                <p style="margin: 0; white-space: pre-line">{{ $task->venue->concept }}</p>
+            </section>
+        @endif
+
+        <section class="panel">
+            <h2>ისტორია</h2>
+            <ul class="timeline">
+                @foreach ($task->activities->take(15) as $a)
+                    <li><b>{{ $a->user?->name ?? '—' }}</b> {{ $a->describe() }} · {{ $a->created_at->format('d.m H:i') }}</li>
+                @endforeach
+            </ul>
+        </section>
+
+        @if (auth()->user()->canApprove() || $task->creator_id === auth()->id())
+            <form method="post" action="{{ route('tasks.destroy', $task) }}" onsubmit="return confirm('წავშალო დავალება და მისი ვიზუალები?')">
+                @csrf @method('delete')
+                <button class="btn danger" type="submit">დავალების წაშლა</button>
+            </form>
+        @endif
+    </div>
+</div>
+@endsection
