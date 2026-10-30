@@ -95,7 +95,13 @@
                         </select>
                     </label>
                 @endif
-                <button class="btn primary" type="submit">გაგზავნა დასადასტურებლად</button>
+                @if ($mine)
+                    <label style="display: flex; gap: 8px; align-items: center; flex: 1 1 100%">
+                        <input type="checkbox" name="mark_ready" value="1" checked>
+                        ჩემი ნაწილი მზადაა — მოვნიშნო „მზადაა“
+                    </label>
+                @endif
+                <button class="btn primary" type="submit">ატვირთვა</button>
             </form>
         </section>
 
@@ -133,15 +139,11 @@
                     'selected' => $task->channels->pluck('format', 'platform')->all(),
                     'uid' => 'edit',
                 ])
+                @include('partials.assignee-fields', [
+                    'current' => $task->assignments->map(fn ($a) => ['user_id' => $a->user_id, 'note' => $a->note])->all(),
+                    'uid' => 'edit',
+                ])
                 <div class="form-grid">
-                    <label class="field">შემსრულებელი
-                        <select name="assignee_id">
-                            <option value="">— არავინ</option>
-                            @foreach ($users as $u)
-                                <option value="{{ $u->id }}" @selected($task->assignee_id === $u->id)>{{ $u->name }} · {{ $u->roleLabel() }}</option>
-                            @endforeach
-                        </select>
-                    </label>
                     <label class="field">ვადა
                         <input type="date" name="due_on" value="{{ old('due_on', $task->due_on?->format('Y-m-d')) }}">
                     </label>
@@ -161,6 +163,46 @@
     </div>
 
     <div class="aside">
+        @if ($mine)
+            <section class="my-part" style="--tone: {{ \App\Models\TaskAssignment::STATUSES[$mine->status][1] }}">
+                <span class="side-label" style="padding: 0">ჩემი ნაწილი</span>
+                <b style="font-size: 16px">{{ $mine->note ?: 'ამ დავალებაზე მუშაობ შენ' }}</b>
+                <span class="pill" style="{{ $mine->style() }}; align-self: flex-start">{{ $mine->label() }}</span>
+                @if ($mine->status === 'assigned')
+                    <p style="margin: 0">გაეცანი ბრიფს და რეფერენსებს, მერე დააჭირე — დავალება შენს სივრცეში „მუშავდება“ სვეტში გადავა.</p>
+                    <form method="post" action="{{ route('tasks.start', $task) }}">@csrf
+                        <button class="btn primary" type="submit" style="width: 100%; min-height: 46px">დავიწყე მუშაობა</button>
+                    </form>
+                @elseif ($mine->status === 'in_progress')
+                    <p style="margin: 0">როცა დაასრულებ, ატვირთე ფაილი ან ბმული (ქვემოთ) ან უბრალოდ მონიშნე „მზადაა“ — დაფაზე მაშინ გამოჩნდება.</p>
+                    <form method="post" action="{{ route('tasks.ready', $task) }}">@csrf
+                        <button class="btn ok" type="submit" style="width: 100%; min-height: 46px">მზადაა</button>
+                    </form>
+                @else
+                    <p style="margin: 0">მზადაა {{ $mine->ready_at?->format('d.m H:i') }}. @if ($task->status !== 'review' && $task->assignments->count() > 1) ელოდება დანარჩენებს ({{ $task->readyCount() }}/{{ $task->assignments->count() }}). @endif</p>
+                    <form method="post" action="{{ route('tasks.start', $task) }}">@csrf
+                        <button class="btn sm" type="submit">დავაბრუნო მუშაობაში</button>
+                    </form>
+                @endif
+                <a href="{{ route('workspace') }}">← ჩემი სივრცე</a>
+            </section>
+        @endif
+
+        <section class="panel">
+            <h2>შემსრულებლები</h2>
+            @forelse ($task->assignments as $a)
+                <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 10px">
+                    <span class="avatar lg" style="background: {{ $a->user->avatar_color }}">{{ $a->user->initial() }}</span>
+                    <div style="flex: 1; min-width: 0">
+                        <b>{{ $a->user->name }}</b><br>
+                        <small style="color: var(--muted)">{{ $a->note ?: $a->user->roleLabel() }}</small>
+                    </div>
+                    <span class="pill" style="{{ $a->style() }}">{{ $a->label() }}</span>
+                </div>
+            @empty
+                <p style="margin: 0; color: var(--muted)">ჯერ არავინ — „დეტალებში“ აირჩიე 3-მდე ადამიანი.</p>
+            @endforelse
+        </section>
         @php($tone = ['review' => '#1F76C2', 'approved' => '#00854D', 'published' => '#6E3FD1', 'revision' => '#D83A52'][$task->status] ?? '#676879')
         <section class="approve-box" style="background: {{ $tone }}">
             <h2 style="margin: 0; font-size: 16px">დადასტურება</h2>
@@ -203,7 +245,7 @@
             <dl class="kv">
                 <dt>რესტორანი</dt><dd>{{ $task->venue->name }}</dd>
                 <dt>შემქმნელი</dt><dd>{{ $task->creator?->name ?? '—' }}</dd>
-                <dt>შემსრულებელი</dt><dd>{{ $task->assignee?->name ?? '—' }}</dd>
+                <dt>შემსრულებლები</dt><dd>{{ $task->assignments->map(fn ($a) => $a->user->name)->join(', ') ?: '—' }}</dd>
                 <dt>ვადა</dt><dd class="{{ $task->isOverdue() ? 'due-late' : '' }}">{{ $task->due_on?->format('d.m.Y') ?? '—' }}</dd>
                 <dt>გამოქვეყნება</dt><dd>{{ $task->publish_at?->format('d.m.Y H:i') ?? '—' }}</dd>
             </dl>

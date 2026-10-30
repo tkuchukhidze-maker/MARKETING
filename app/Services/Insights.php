@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Task;
+use App\Models\TaskAssignment;
 use App\Models\User;
 use App\Models\Venue;
 use App\Support\Studio;
@@ -23,7 +24,7 @@ class Insights
     public function for(?Venue $venue = null): Collection
     {
         $hints = collect();
-        $open = Task::query()->open()->with(['venue', 'assignee'])
+        $open = Task::query()->open()->with(['venue', 'assignments'])
             ->when($venue, fn ($q) => $q->where('venue_id', $venue->id))
             ->get();
 
@@ -48,8 +49,8 @@ class Insights
             ]);
         }
 
-        // 3. No assignee
-        $unassigned = $open->whereNull('assignee_id');
+        // 3. Nobody on it
+        $unassigned = $open->filter(fn (Task $t) => $t->assignments->isEmpty());
         if ($unassigned->isNotEmpty()) {
             $hints->push([
                 'tone' => 'info',
@@ -58,15 +59,27 @@ class Insights
             ]);
         }
 
-        // 4. Overloaded people (across both houses)
-        $load = Task::query()->open()->whereNotNull('assignee_id')
-            ->selectRaw('assignee_id, count(*) as n')->groupBy('assignee_id')
-            ->havingRaw('count(*) >= ?', [self::OVERLOAD_THRESHOLD])->pluck('n', 'assignee_id');
+        // 4. Overloaded people: unfinished parts across both houses
+        $load = TaskAssignment::query()
+            ->where('status', '!=', 'ready')
+            ->whereHas('task', fn ($q) => $q->open())
+            ->selectRaw('user_id, count(*) as n')->groupBy('user_id')
+            ->havingRaw('count(*) >= ?', [self::OVERLOAD_THRESHOLD])->pluck('n', 'user_id');
         foreach (User::whereIn('id', $load->keys())->get() as $user) {
             $hints->push([
                 'tone' => 'warning',
-                'text' => "{$user->name}-ს {$load[$user->id]} ღია დავალება აქვს — განიხილე გადანაწილება.",
+                'text' => "{$user->name}-ს {$load[$user->id]} დაუსრულებელი დავალება აქვს — განიხილე გადანაწილება.",
                 'url' => route('team'),
+            ]);
+        }
+
+        // 4b. Waiting on one person while the others are done
+        foreach ($open->filter(fn (Task $t) => $t->assignments->count() > 1 && $t->readyCount() === $t->assignments->count() - 1)->take(2) as $task) {
+            $waiting = $task->assignments->firstWhere('status', '!=', 'ready');
+            $hints->push([
+                'tone' => 'info',
+                'text' => "„{$task->title}“ — ყველა მზადაა, ელოდება: ".(User::find($waiting->user_id)?->name ?? '—').'.',
+                'url' => route('tasks.show', $task),
             ]);
         }
 

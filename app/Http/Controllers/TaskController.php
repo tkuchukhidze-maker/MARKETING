@@ -24,11 +24,22 @@ class TaskController extends Controller
      * Platforms arrive as platforms[] (one or more, or all) and a format per
      * platform as formats[platform]. Reference links arrive one per line.
      *
-     * @return array{0: array<string, mixed>, 1: array<string, ?string>}
+     * Up to three people arrive as assignees[n][user_id] + assignees[n][note]
+     * (their own part of the job).
+     *
+     * @return array{0: array<string, mixed>, 1: array<string, ?string>, 2: array<int, ?string>}
      */
     private function validateTask(Request $request): array
     {
+        // drop the empty "— nobody" rows before validating
+        $request->merge(['assignees' => collect($request->input('assignees', []))
+            ->filter(fn ($row) => is_array($row) && filled($row['user_id'] ?? null))
+            ->values()->all()]);
+
         $data = $request->validate([
+            'assignees' => ['array', 'max:'.Task::MAX_ASSIGNEES],
+            'assignees.*.user_id' => ['required', 'distinct', Rule::exists('users', 'id')->where('is_active', true)],
+            'assignees.*.note' => ['nullable', 'string', 'max:300'],
             'title' => ['required', 'string', 'max:200'],
             'platforms' => ['required', 'array', 'min:1'],
             'platforms.*' => ['distinct', Rule::in(array_keys(Studio::PLATFORMS))],
@@ -36,11 +47,12 @@ class TaskController extends Controller
             'formats.*' => ['nullable', 'string', 'max:60'],
             'brief' => ['nullable', 'string', 'max:5000'],
             'reference_links' => ['nullable', 'string', 'max:5000'],
-            'assignee_id' => ['nullable', Rule::exists('users', 'id')],
             'due_on' => ['nullable', 'date'],
             'publish_at' => ['nullable', 'date'],
         ], [
             'platforms.required' => 'აირჩიე მინიმუმ ერთი სოციალური ქსელი.',
+            'assignees.max' => 'ერთ დავალებაზე მაქსიმუმ '.Task::MAX_ASSIGNEES.' შემსრულებელი.',
+            'assignees.*.user_id.distinct' => 'ერთი და იგივე ადამიანი ორჯერ არის არჩეული.',
         ]);
 
         $links = collect(preg_split('/\R/', (string) ($data['reference_links'] ?? '')))
@@ -61,78 +73,107 @@ class TaskController extends Controller
             $channels[$platform] = $data['formats'][$platform] ?? null;
         }
 
-        $fields = collect($data)->only(['title', 'brief', 'assignee_id', 'due_on', 'publish_at'])->all();
+        $fields = collect($data)->only(['title', 'brief', 'due_on', 'publish_at'])->all();
         $fields['reference_links'] = $links->isEmpty() ? null : $links->all();
 
-        return [$fields, $channels];
+        $people = [];
+        foreach ($data['assignees'] ?? [] as $row) {
+            $people[(int) $row['user_id']] = $row['note'] ?? null;
+        }
+
+        return [$fields, $channels, $people];
     }
 
     public function store(Request $request, Venue $venue): RedirectResponse
     {
-        [$fields, $channels] = $this->validateTask($request);
+        [$fields, $channels, $people] = $this->validateTask($request);
 
-        $task = DB::transaction(function () use ($venue, $fields, $channels, $request) {
+        $task = DB::transaction(function () use ($venue, $fields, $channels, $people, $request) {
             $task = $venue->tasks()->create([
                 ...$fields,
                 'status' => 'todo',
                 'creator_id' => $request->user()->id,
             ]);
             $task->syncChannels($channels);
+            $task->syncAssignments($people);
 
             return $task;
         });
         $task->log($request->user(), 'created');
+        $this->logPeople($request->user(), $task, []);
 
         return redirect()->route('board', $venue)->with('ok', 'დავალება დაემატა.');
     }
 
     public function show(Task $task): View
     {
-        $task->load(['venue', 'channels', 'assignee', 'creator', 'approver', 'assets.user', 'assets.channel', 'comments.user', 'activities.user']);
+        $task->load(['venue', 'channels', 'assignments.user', 'creator', 'approver', 'assets.user', 'assets.channel', 'comments.user', 'activities.user']);
 
         return view('tasks.show', [
             'task' => $task,
             'users' => User::where('is_active', true)->orderBy('name')->get(),
             'allowed' => $task->allowedStatusesFor(request()->user()),
+            'mine' => $task->assignmentFor(request()->user()),
         ]);
     }
 
     public function update(Request $request, Task $task): RedirectResponse
     {
-        [$fields, $channels] = $this->validateTask($request);
-        $oldAssignee = $task->assignee_id;
+        [$fields, $channels, $people] = $this->validateTask($request);
+        $before = $task->assignments()->pluck('user_id')->all();
 
-        DB::transaction(function () use ($task, $fields, $channels) {
+        DB::transaction(function () use ($task, $fields, $channels, $people) {
             $task->update($fields);
             $task->syncChannels($channels);
+            $task->syncAssignments($people);
         });
         $task->log($request->user(), 'updated');
-
-        if ($task->assignee_id && (int) $task->assignee_id !== (int) $oldAssignee) {
-            $task->log($request->user(), 'assigned', ['to' => $task->assignee?->name]);
-        }
+        $this->logPeople($request->user(), $task, $before);
 
         return back()->with('ok', 'შენახულია.');
     }
 
-    /** Quick inline change from the board: status or assignee. */
+    /** Quick status change from the board. */
     public function quick(Request $request, Task $task): RedirectResponse
     {
         $data = $request->validate([
-            'status' => ['sometimes', Rule::in(array_keys(Studio::STATUSES))],
-            'assignee_id' => ['sometimes', 'nullable', Rule::exists('users', 'id')],
+            'status' => ['required', Rule::in(array_keys(Studio::STATUSES))],
         ]);
 
-        if (array_key_exists('status', $data)) {
-            $this->changeStatus($request->user(), $task, $data['status']);
-        }
-
-        if (array_key_exists('assignee_id', $data) && $data['assignee_id'] != $task->assignee_id) {
-            $task->update(['assignee_id' => $data['assignee_id']]);
-            $task->log($request->user(), 'assigned', ['to' => $task->fresh()->assignee?->name]);
-        }
+        $this->changeStatus($request->user(), $task, $data['status']);
 
         return back();
+    }
+
+    /** "დავიწყე მუშაობა" — the person starts on their part. */
+    public function start(Request $request, Task $task): RedirectResponse
+    {
+        $task->startWork($request->user());
+
+        return back()->with('ok', 'მუშაობა დაიწყე — დავალება შენს სივრცეშია, „მუშავდება“ სვეტში.');
+    }
+
+    /** "მზადაა" — the person's part is done. */
+    public function ready(Request $request, Task $task): RedirectResponse
+    {
+        $task->markReady($request->user());
+        $task->refresh();
+
+        return back()->with('ok', $task->status === 'review'
+            ? 'მზადაა — დავალება დაფაზე გადავიდა „დასადასტურებელში“.'
+            : 'შენი ნაწილი მზადაა. დაფაზე გადავა, როცა ყველა შემსრულებელი მონიშნავს „მზადაა“-ს ('.$task->readyCount().'/'.$task->assignments->count().').');
+    }
+
+    private function logPeople(User $by, Task $task, array $before): void
+    {
+        $task->load('assignments.user');
+        $now = $task->assignments->pluck('user_id')->all();
+        sort($before);
+        sort($now);
+
+        if ($now !== $before && $now !== []) {
+            $task->log($by, 'assigned', ['to' => $task->assignments->map(fn ($a) => $a->user->name)->join(', ')]);
+        }
     }
 
     public function approve(Request $request, Task $task): RedirectResponse
@@ -219,12 +260,22 @@ class TaskController extends Controller
 
         $task->log($request->user(), 'asset', ['version' => $version]);
 
-        // Fresh work on a task that was open or sent back goes straight to review.
-        if (in_array($task->status, ['todo', 'in_progress', 'revision'], true)) {
+        $task->load('assignments');
+        $mine = $task->assignmentFor($request->user());
+
+        if ($mine && $request->boolean('mark_ready')) {
+            // the uploader is on the task: their part is done
+            $task->markReady($request->user());
+        } elseif ($task->assignments->isEmpty() && in_array($task->status, ['todo', 'in_progress', 'revision'], true)) {
+            // nobody assigned: fresh work goes straight to review
             $this->changeStatus($request->user(), $task, 'review');
         }
 
-        return back()->with('ok', "v{$version} დაემატა და გაიგზავნა დასადასტურებლად.");
+        $task->refresh();
+
+        return back()->with('ok', $task->status === 'review'
+            ? "v{$version} დაემატა და დავალება გადავიდა „დასადასტურებელში“."
+            : "v{$version} დაემატა.");
     }
 
     public function asset(TaskAsset $asset): StreamedResponse
@@ -255,6 +306,12 @@ class TaskController extends Controller
         }
 
         $task->save();
+
+        if ($status === 'revision') {
+            // everyone's part goes back to their own space as "in progress"
+            $task->reopenAssignments();
+        }
+
         $task->log($user, match ($status) {
             'approved' => 'approved',
             'revision' => 'revision',

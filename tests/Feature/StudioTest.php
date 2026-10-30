@@ -68,7 +68,7 @@ class StudioTest extends TestCase
             'formats' => ['facebook' => 'პოსტერი', 'instagram' => 'პოსტი 4:5', 'story' => 'ignored'],
             'reference_links' => "https://pinterest.com/pin/1\n\nhttps://www.behance.net/x",
             // assigned, so the "no assignee" reminder doesn't mention it on every filter
-            'assignee_id' => $user->id,
+            'assignees' => [['user_id' => $user->id, 'note' => 'დიზაინი'], ['user_id' => '', 'note' => '']],
         ])->assertRedirect(route('board', $this->batumi));
 
         $task = Task::where('title', 'ია თომაშის საღამო')->firstOrFail();
@@ -139,6 +139,89 @@ class StudioTest extends TestCase
             'url' => 'https://figma.com/x',
             'task_channel_id' => $other->channels()->first()->id,
         ])->assertSessionHasErrors('task_channel_id');
+    }
+
+    public function test_one_task_for_three_people_each_with_their_own_part(): void
+    {
+        $manager = User::factory()->role('manager')->create();
+        $designer = User::factory()->role('designer')->create();
+        $photographer = User::factory()->role('photographer')->create();
+        $smm = User::factory()->role('smm')->create();
+
+        $this->actingAs($manager)->post(route('tasks.store', $this->batumi), [
+            'title' => 'ია თომაშის საღამო',
+            'platforms' => ['facebook', 'story'],
+            'assignees' => [
+                ['user_id' => $designer->id, 'note' => 'პოსტერი'],
+                ['user_id' => $photographer->id, 'note' => 'ფოტოები'],
+                ['user_id' => $smm->id, 'note' => 'ტექსტი'],
+            ],
+        ])->assertRedirect();
+
+        $task = Task::where('title', 'ია თომაშის საღამო')->firstOrFail();
+        $this->assertSame(3, $task->assignments()->count());
+
+        // everyone sees only their own part in their own space
+        $this->actingAs($designer)->get('/')->assertRedirect(route('workspace'));
+        $this->get(route('workspace'))->assertOk()->assertSee('ია თომაშის საღამო')
+            ->assertSee('<b>ჩემი ნაწილი:</b> პოსტერი', false)
+            ->assertDontSee('<b>ჩემი ნაწილი:</b> ფოტოები', false);
+        $this->actingAs($photographer)->get(route('workspace'))->assertOk()->assertSee('<b>ჩემი ნაწილი:</b> ფოტოები', false);
+
+        // start → in progress on the board
+        $this->actingAs($designer)->post(route('tasks.start', $task))->assertRedirect();
+        $this->assertSame('in_progress', $task->fresh()->status);
+        $this->assertSame('in_progress', $task->assignmentFor($designer)->fresh()->status);
+
+        // two ready, one still working → stays in progress
+        $this->post(route('tasks.ready', $task));
+        $this->actingAs($photographer)->post(route('tasks.ready', $task));
+        $this->assertSame('in_progress', $task->fresh()->status);
+
+        // last one ready → goes to review on the board
+        $this->actingAs($smm)->post(route('tasks.ready', $task));
+        $this->assertSame('review', $task->fresh()->status);
+
+        // sent back: everyone's part returns to "in progress" in their space
+        $this->actingAs($manager)->post(route('tasks.revision', $task), ['body' => 'თარიღი უფრო დიდად'])->assertRedirect();
+        $task->refresh();
+        $this->assertSame('revision', $task->status);
+        $this->assertSame(['in_progress'], $task->assignments()->pluck('status')->unique()->values()->all());
+    }
+
+    public function test_at_most_three_people_and_only_they_can_start_or_finish(): void
+    {
+        $manager = User::factory()->role('manager')->create();
+        $people = User::factory()->count(4)->create();
+
+        $this->actingAs($manager)->post(route('tasks.store', $this->batumi), [
+            'title' => 'ოთხი',
+            'platforms' => ['story'],
+            'assignees' => $people->map(fn ($u) => ['user_id' => $u->id])->all(),
+        ])->assertSessionHasErrors('assignees');
+
+        $task = $this->task();
+        $this->actingAs($people[0])->post(route('tasks.start', $task))->assertForbidden();
+        $this->post(route('tasks.ready', $task))->assertForbidden();
+    }
+
+    public function test_uploading_as_a_person_on_the_task_marks_their_part_ready(): void
+    {
+        $designer = User::factory()->role('designer')->create();
+        $writer = User::factory()->role('copywriter')->create();
+        $task = $this->task(['status' => 'in_progress']);
+        $task->syncAssignments([$designer->id => 'დიზაინი', $writer->id => 'ტექსტი']);
+
+        $this->actingAs($designer)->post(route('tasks.upload', $task), [
+            'url' => 'https://www.figma.com/file/abc',
+            'mark_ready' => 1,
+        ])->assertRedirect();
+
+        $task->refresh()->load('assignments');
+        $this->assertSame('ready', $task->assignmentFor($designer)->status);
+        $this->assertSame('in_progress', $task->status, 'still waiting for the copywriter');
+
+        $this->get(route('board', $this->batumi))->assertOk()->assertSee('1/2 მზადაა');
     }
 
     public function test_designer_cannot_approve_but_manager_can(): void

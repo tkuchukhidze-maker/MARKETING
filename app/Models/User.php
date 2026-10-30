@@ -27,9 +27,9 @@ class User extends Authenticatable
         ];
     }
 
-    public function tasks(): HasMany
+    public function assignments(): HasMany
     {
-        return $this->hasMany(Task::class, 'assignee_id');
+        return $this->hasMany(TaskAssignment::class);
     }
 
     public function canApprove(): bool

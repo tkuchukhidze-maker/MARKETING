@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
     'venue_id', 'title', 'brief', 'reference_links', 'status',
-    'assignee_id', 'creator_id', 'approved_by', 'approved_at', 'due_on', 'publish_at',
+    'creator_id', 'approved_by', 'approved_at', 'due_on', 'publish_at',
 ])]
 class Task extends Model
 {
@@ -65,9 +65,110 @@ class Task extends Model
         return $this->belongsTo(Venue::class);
     }
 
-    public function assignee(): BelongsTo
+    public const MAX_ASSIGNEES = 3;
+
+    /** The people on this task (up to three), each with their own part. */
+    public function assignments(): HasMany
     {
-        return $this->belongsTo(User::class, 'assignee_id');
+        return $this->hasMany(TaskAssignment::class)->orderBy('id');
+    }
+
+    public function assignmentFor(?User $user): ?TaskAssignment
+    {
+        return $user ? $this->assignments->firstWhere('user_id', $user->id) : null;
+    }
+
+    public function scopeAssignedTo(Builder $query, User $user): Builder
+    {
+        return $query->whereHas('assignments', fn ($q) => $q->where('user_id', $user->id));
+    }
+
+    /**
+     * Replace the people on the task with the given user_id => part map,
+     * keeping the progress of everyone who stays on it.
+     *
+     * @param  array<int, ?string>  $map
+     */
+    public function syncAssignments(array $map): void
+    {
+        $this->assignments()->whereNotIn('user_id', array_keys($map))->delete();
+
+        foreach ($map as $userId => $note) {
+            $row = $this->assignments()->firstOrNew(['user_id' => $userId]);
+            $row->note = $note ?: null;
+            if (! $row->exists) {
+                $row->status = 'assigned';
+            }
+            $row->save();
+        }
+
+        $this->unsetRelation('assignments');
+        $this->settleFromAssignments(null);
+    }
+
+    /** The person opens their part and starts working on it. */
+    public function startWork(User $user): void
+    {
+        $a = $this->assignmentFor($user);
+        abort_unless($a, 403, 'ეს დავალება შენზე არ არის.');
+
+        $a->update(['status' => 'in_progress', 'started_at' => $a->started_at ?? now(), 'ready_at' => null]);
+        $this->log($user, 'started');
+
+        if (in_array($this->status, ['todo', 'review'], true)) {
+            $this->moveTo('in_progress', $user);
+        }
+    }
+
+    /** The person marks their part ready; when everyone is ready the task goes to review. */
+    public function markReady(User $user): void
+    {
+        $a = $this->assignmentFor($user);
+        abort_unless($a, 403, 'ეს დავალება შენზე არ არის.');
+
+        $a->update(['status' => 'ready', 'started_at' => $a->started_at ?? now(), 'ready_at' => now()]);
+        $this->log($user, 'ready');
+        $this->unsetRelation('assignments');
+        $this->settleFromAssignments($user);
+    }
+
+    /**
+     * Keep the task's board status in step with its people:
+     * everyone ready → review; someone working again → in progress.
+     */
+    public function settleFromAssignments(?User $by): void
+    {
+        $this->loadMissing('assignments');
+        if ($this->assignments->isEmpty() || in_array($this->status, ['approved', 'published'], true)) {
+            return;
+        }
+
+        $allReady = $this->assignments->every(fn (TaskAssignment $a) => $a->status === 'ready');
+
+        if ($allReady && $this->status !== 'review') {
+            $this->moveTo('review', $by);
+        } elseif (! $allReady && $this->status === 'review') {
+            $this->moveTo('in_progress', $by);
+        }
+    }
+
+    /** Sent back for changes: everyone who was ready goes back to work. */
+    public function reopenAssignments(): void
+    {
+        $this->assignments()->where('status', 'ready')->update(['status' => 'in_progress', 'ready_at' => null]);
+        $this->unsetRelation('assignments');
+    }
+
+    public function readyCount(): int
+    {
+        return $this->assignments->where('status', 'ready')->count();
+    }
+
+    private function moveTo(string $status, ?User $by): void
+    {
+        $from = $this->status;
+        $this->update(['status' => $status]);
+        $this->log($by, 'status', ['from' => $from, 'to' => $status]);
     }
 
     public function creator(): BelongsTo

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Contact;
 use App\Models\Task;
+use App\Models\TaskAssignment;
 use App\Models\User;
 use App\Models\Venue;
 use App\Services\Insights;
@@ -19,15 +20,18 @@ class TeamController extends Controller
     public function index(Insights $insights): View
     {
         $venues = Venue::orderBy('sort')->get();
-        $open = Task::open()->get(['id', 'venue_id', 'assignee_id', 'status', 'due_on']);
+        $open = Task::open()->get(['id', 'venue_id', 'status', 'due_on']);
+        $parts = TaskAssignment::whereIn('task_id', $open->pluck('id'))->get();
 
-        $team = User::orderByRaw('is_active desc')->orderBy('name')->get()->map(function (User $u) use ($open, $venues) {
-            $mine = $open->where('assignee_id', $u->id);
+        $team = User::orderByRaw('is_active desc')->orderBy('name')->get()->map(function (User $u) use ($open, $parts, $venues) {
+            $myParts = $parts->where('user_id', $u->id);
+            $mine = $open->whereIn('id', $myParts->pluck('task_id'));
 
             return [
                 'user' => $u,
-                'total' => $mine->count(),
-                'review' => $mine->where('status', 'review')->count(),
+                'total' => $myParts->where('status', '!=', 'ready')->count(),
+                'working' => $myParts->where('status', 'in_progress')->count(),
+                'ready' => $myParts->where('status', 'ready')->count(),
                 'overdue' => $mine->filter(fn ($t) => $t->due_on && $t->due_on->isBefore(today()))->count(),
                 'byVenue' => $venues->mapWithKeys(fn ($v) => [$v->id => $mine->where('venue_id', $v->id)->count()]),
             ];

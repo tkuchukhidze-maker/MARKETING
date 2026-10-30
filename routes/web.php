@@ -4,6 +4,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BoardController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\TeamController;
+use App\Http\Controllers\WorkspaceController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('guest')->group(function () {
@@ -15,6 +16,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
     Route::get('/', [BoardController::class, 'home'])->name('home');
+    Route::get('/me', [WorkspaceController::class, 'index'])->name('workspace');
+    Route::post('/tasks/{task}/start', [TaskController::class, 'start'])->name('tasks.start');
+    Route::post('/tasks/{task}/ready', [TaskController::class, 'ready'])->name('tasks.ready');
     Route::get('/v/{venue}', [BoardController::class, 'board'])->name('board');
     Route::get('/v/{venue}/calendar', [BoardController::class, 'calendar'])->name('calendar');
 

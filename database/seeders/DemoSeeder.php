@@ -53,7 +53,6 @@ class DemoSeeder extends Seeder
                 ['venue_id' => $venue->id, 'title' => $title],
                 [
                     'status' => $status,
-                    'assignee_id' => $role ? $team[$role]->id : null,
                     'creator_id' => $team['smm']->id,
                     'due_on' => $monday->copy()->addDays($day),
                     'publish_at' => $monday->copy()->addDays($day)->setTime(19, 0),
@@ -62,6 +61,24 @@ class DemoSeeder extends Seeder
 
             if ($task->wasRecentlyCreated) {
                 $task->syncChannels($channels);
+                $people = $role ? [$team[$role]->id => null] : [];
+                if ($title === 'ია თომაშის საღამო') {
+                    // one job, three people, each with their own part
+                    $people = [
+                        $team['designer']->id => 'პოსტერი და სთორის დიზაინი',
+                        $team['photographer']->id => 'ია თომაშის ფოტოები',
+                        $team['copywriter']->id => 'პოსტის ტექსტი ქართულად და ინგლისურად',
+                    ];
+                }
+                $task->syncAssignments($people);
+
+                // demo progress that matches each task's board status
+                $task->assignments()->update(['status' => match ($status) {
+                    'in_progress', 'revision' => 'in_progress',
+                    'review', 'approved', 'published' => 'ready',
+                    default => 'assigned',
+                }]);
+                $task->update(['status' => $status]);
             }
         }
 

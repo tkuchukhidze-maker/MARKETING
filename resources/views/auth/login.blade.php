@@ -6,7 +6,7 @@
     <meta name="robots" content="noindex, nofollow">
     <title>შესვლა — სახლში Studio</title>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;600;800&family=Noto+Sans+Georgian:wght@400;600;800&display=swap">
-    <link rel="stylesheet" href="{{ asset('css/studio.css') }}?v=2">
+    <link rel="stylesheet" href="{{ asset('css/studio.css') }}?v=3">
 </head>
 <body>
 <div class="login">

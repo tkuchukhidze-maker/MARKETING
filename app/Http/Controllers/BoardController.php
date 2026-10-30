@@ -14,8 +14,13 @@ use Illuminate\View\View;
 
 class BoardController extends Controller
 {
-    public function home(): RedirectResponse
+    public function home(Request $request): RedirectResponse
     {
+        // makers land in their own space; managers on the shared board
+        if (! $request->user()->canApprove()) {
+            return redirect()->route('workspace');
+        }
+
         $venue = Venue::orderBy('sort')->firstOrFail();
 
         return redirect()->route('board', $venue);
@@ -28,19 +33,21 @@ class BoardController extends Controller
         $mine = $request->boolean('mine');
         $q = trim((string) $request->query('q'));
 
-        $all = $venue->tasks()->with(['assignee', 'channels'])->withCount(['comments', 'assets'])
-            ->orderByRaw('due_on is null')->orderBy('due_on')->orderBy('id')
+        $all = $venue->tasks()->with(['assignments.user', 'channels'])->withCount(['comments', 'assets'])
+            ->orderByRaw('due_on is null')->orderBy('due_on')->orderBy('publish_at')->orderBy('id')
             ->get();
 
         $tasks = $all
             ->when($platform, fn ($c) => $c->filter(fn (Task $t) => $t->hasPlatform($platform)))
-            ->when($mine, fn ($c) => $c->where('assignee_id', $request->user()->id))
+            ->when($mine, fn ($c) => $c->filter(fn (Task $t) => $t->assignmentFor($request->user()) !== null))
             ->when($q !== '', fn ($c) => $c->filter(fn (Task $t) => mb_stripos($t->title, $q) !== false));
 
-        $groups = collect(Studio::STATUSES)->map(fn ($def, $key) => [
+        // what needs the manager's eye first; work in progress lives in people's own spaces
+        $groups = collect(Studio::BOARD_ORDER)->map(fn ($key) => [
             'key' => $key,
-            'label' => $def[0],
-            'color' => $def[1],
+            'label' => Studio::STATUSES[$key][0],
+            'color' => Studio::STATUSES[$key][1],
+            'open' => ! in_array($key, ['in_progress', 'published'], true),
             'tasks' => $tasks->where('status', $key)->values(),
         ]);
 
@@ -69,7 +76,7 @@ class BoardController extends Controller
         }
         $days = collect(range(0, 6))->map(fn ($i) => $start->copy()->addDays($i));
 
-        $tasks = $venue->tasks()->with(['assignee', 'channels'])
+        $tasks = $venue->tasks()->with(['assignments.user', 'channels'])
             ->whereNotNull('publish_at')
             ->whereBetween('publish_at', [$start->copy()->startOfDay(), $start->copy()->addDays(6)->endOfDay()])
             ->orderBy('publish_at')

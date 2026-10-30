@@ -38,7 +38,8 @@
                     <tr>
                         <th scope="col">წევრი</th>
                         @foreach ($venues as $v)<th scope="col">{{ $v->name }}</th>@endforeach
-                        <th scope="col">განხილვაზე</th>
+                        <th scope="col">მუშავდება</th>
+                        <th scope="col">მზადაა</th>
                         <th scope="col">ვადაგადაცილ.</th>
                         <th scope="col" style="width: 22%">დატვირთვა</th>
                     </tr>
@@ -54,12 +55,13 @@
                                 </span>
                             </td>
                             @foreach ($venues as $v)<td>{{ $row['byVenue'][$v->id] }}</td>@endforeach
-                            <td>{{ $row['review'] }}</td>
+                            <td>{{ $row['working'] }}</td>
+                            <td>{{ $row['ready'] }}</td>
                             <td class="{{ $row['overdue'] ? 'due-late' : '' }}">{{ $row['overdue'] }}</td>
                             <td>
                                 @php($pct = min(100, $row['total'] / max(1, $threshold) * 100))
-                                <div class="bar" role="img" aria-label="{{ $row['total'] }} ღია დავალება"><span style="width: {{ $pct }}%; background: {{ $row['total'] >= $threshold ? '#D83A52' : '#00854D' }}"></span></div>
-                                <small style="color: var(--muted)">{{ $row['total'] }} ღია</small>
+                                <div class="bar" role="img" aria-label="{{ $row['total'] }} დაუსრულებელი"><span style="width: {{ $pct }}%; background: {{ $row['total'] >= $threshold ? '#D83A52' : '#00854D' }}"></span></div>
+                                <small style="color: var(--muted)">{{ $row['total'] }} დაუსრულებელი</small>
                             </td>
                         </tr>
                     @endforeach

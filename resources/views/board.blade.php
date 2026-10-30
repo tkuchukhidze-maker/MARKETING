@@ -52,10 +52,10 @@
 @endif
 
 @foreach ($groups as $group)
-    <details class="group" open style="--group: {{ $group['color'] }}">
+    <details class="group" @if ($group['open']) open @endif style="--group: {{ $group['color'] }}">
         <summary style="color: {{ $group['key'] === 'review' ? '#8A6D00' : $group['color'] }}">
             <svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
-            {{ $group['label'] }} <small>{{ $group['tasks']->count() }} დავალება</small>
+            {{ $group['label'] }} <small>{{ $group['tasks']->count() }} დავალება{{ $group['key'] === 'in_progress' ? ' · შემსრულებლების სივრცეში' : '' }}</small>
         </summary>
         <div class="table-wrap">
             <table class="board">
@@ -88,25 +88,9 @@
                             </div>
                         </td>
                         <td>
-                            <details class="menu">
-                                <summary class="cell-fill" aria-label="შემსრულებლის შეცვლა">
-                                    @if ($task->assignee)
-                                        <span class="avatar" style="background: {{ $task->assignee->avatar_color }}" title="{{ $task->assignee->name }}">{{ $task->assignee->initial() }}</span>
-                                        <span style="margin-left: 6px; font-weight: 500">{{ $task->assignee->name }}</span>
-                                    @else
-                                        <span class="avatar empty">+</span>
-                                    @endif
-                                </summary>
-                                <form class="menu-pop" method="post" action="{{ route('tasks.quick', $task) }}">
-                                    @csrf @method('patch')
-                                    @foreach ($users as $u)
-                                        <button class="who" name="assignee_id" value="{{ $u->id }}" type="submit">
-                                            <span class="avatar" style="background: {{ $u->avatar_color }}">{{ $u->initial() }}</span>{{ $u->name }}
-                                        </button>
-                                    @endforeach
-                                    <button class="who" name="assignee_id" value="" type="submit">— მოხსნა</button>
-                                </form>
-                            </details>
+                            <a class="cell-fill" href="{{ route('tasks.show', $task) }}" style="text-decoration: none; color: inherit">
+                                @include('partials.people', ['task' => $task, 'full' => true])
+                            </a>
                         </td>
                         <td>
                             <details class="menu">
@@ -139,15 +123,8 @@
             <input name="title" required maxlength="200" value="{{ old('title') }}">
         </label>
         @include('partials.channel-fields', ['selected' => $platform ? [$platform => null] : [], 'uid' => 'new'])
+        @include('partials.assignee-fields', ['current' => [], 'uid' => 'new'])
         <div class="form-grid">
-            <label class="field">შემსრულებელი
-                <select name="assignee_id">
-                    <option value="">— არავინ</option>
-                    @foreach ($users as $u)
-                        <option value="{{ $u->id }}">{{ $u->name }} · {{ $u->roleLabel() }}</option>
-                    @endforeach
-                </select>
-            </label>
             <label class="field">ვადა
                 <input type="date" name="due_on" value="{{ old('due_on') }}">
             </label>

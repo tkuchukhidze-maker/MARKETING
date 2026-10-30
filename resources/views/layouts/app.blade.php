@@ -8,16 +8,25 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&family=Noto+Sans+Georgian:wght@400;500;600;700;800&display=swap">
-    <link rel="stylesheet" href="{{ asset('css/studio.css') }}?v=2">
+    <link rel="stylesheet" href="{{ asset('css/studio.css') }}?v=3">
 </head>
 <body>
 @php($navVenues = \App\Models\Venue::orderBy('sort')->get())
+@php($myOpen = \App\Models\TaskAssignment::where('user_id', auth()->id())->where('status', '!=', 'ready')->whereHas('task', fn ($q) => $q->open())->count())
 <div class="shell">
     <aside class="side">
         <a class="brand" href="{{ route('home') }}">
             <span class="brand-mark"><span>ს</span></span>
             <b>სახლში Studio</b>
         </a>
+
+        <nav aria-label="ჩემი">
+            <a class="side-link {{ request()->routeIs('workspace') ? 'is-active' : '' }}" href="{{ route('workspace') }}">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg>
+                ჩემი სივრცე
+                @if ($myOpen)<span class="badge">{{ $myOpen }}</span>@endif
+            </a>
+        </nav>
 
         @foreach ($navVenues as $v)
             <nav aria-label="{{ $v->name }}">

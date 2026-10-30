@@ -36,7 +36,9 @@ class Activity extends Model
             'approved' => 'დაადასტურა',
             'revision' => 'მოითხოვა შესწორება',
             'asset' => 'ატვირთა ვიზუალი v'.($meta['version'] ?? '?'),
-            'assigned' => 'მიანიჭა: '.($meta['to'] ?? '—'),
+            'assigned' => 'შემსრულებლები: '.($meta['to'] ?? '—'),
+            'started' => 'დაიწყო მუშაობა',
+            'ready' => 'მონიშნა „მზადაა“',
             'updated' => 'განაახლა დეტალები',
             default => $this->action,
         };

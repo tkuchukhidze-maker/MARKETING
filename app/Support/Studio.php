@@ -18,6 +18,12 @@ final class Studio
         'published'   => ['გამოქვეყნდა',    '#6E3FD1', '#FFFFFF'],
     ];
 
+    /**
+     * Group order on the shared board: what needs a decision first, work still
+     * in people's own spaces after, finished work last.
+     */
+    public const BOARD_ORDER = ['review', 'revision', 'todo', 'in_progress', 'approved', 'published'];
+
     /** Statuses only a manager/admin may set. */
     public const APPROVAL_STATUSES = ['approved', 'revision'];
 
