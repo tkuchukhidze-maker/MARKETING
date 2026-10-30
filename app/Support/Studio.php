@@ -37,8 +37,8 @@ final class Studio
     public const ROLES = [
         'admin'        => 'ადმინისტრატორი',
         'manager'      => 'მარკეტინგის ხელმძღვანელი',
-        'smm'          => 'SMM მენეჯერი',
-        'designer'     => 'დიზაინერი',
+        'smm'          => 'სოციალური მედია',
+        'designer'     => 'გრაფიკული დიზაინერი',
         'copywriter'   => 'კოპირაიტერი',
         'photographer' => 'ფოტოგრაფი',
     ];

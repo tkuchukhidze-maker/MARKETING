@@ -19,8 +19,8 @@ class DemoSeeder extends Seeder
         $team = [];
         foreach ([
             ['manager', 'მარკეტინგის ხელმძღვანელი', '#D83A52'],
-            ['smm', 'SMM მენეჯერი', '#1F76C2'],
-            ['designer', 'დიზაინერი', '#6E3FD1'],
+            ['smm', 'სოციალური მედია', '#1F76C2'],
+            ['designer', 'გრაფიკული დიზაინერი', '#6E3FD1'],
             ['copywriter', 'კოპირაიტერი', '#00854D'],
             ['photographer', 'ფოტოგრაფი', '#B4400A'],
         ] as [$role, $name, $color]) {
