@@ -26,4 +26,18 @@ jobs:
           php artisan key:generate
 
       - name: Run tests
-        run: php artisan test
+        run: php artisan test --log-junit junit.xml
+
+      # surface each failure as an annotation so it is readable without the raw log
+      - name: Report failures
+        if: failure()
+        run: |
+          php -r '
+            if (!is_file("junit.xml")) { echo "::error title=no junit::tests did not produce junit.xml\n"; exit; }
+            $x = simplexml_load_file("junit.xml");
+            foreach ($x->xpath("//testcase[failure or error]") as $tc) {
+              $node = $tc->failure ?: $tc->error;
+              $msg = substr(trim((string) $node), 0, 1500);
+              $msg = str_replace(["%", "\r", "\n"], ["%25", "%0D", "%0A"], $msg);
+              echo "::error title=" . $tc["name"] . "::" . $msg . "\n";
+            }'
