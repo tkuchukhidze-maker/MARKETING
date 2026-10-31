@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&family=Noto+Sans+Georgian:wght@400;500;600;700;800&display=swap">
-    <link rel="stylesheet" href="{{ asset('css/studio.css') }}?v=4">
+    <link rel="stylesheet" href="{{ asset('css/studio.css') }}?v=5">
 </head>
 <body>
 @php($navVenues = \App\Models\Venue::orderBy('sort')->get())
