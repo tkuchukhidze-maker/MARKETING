@@ -292,3 +292,58 @@ dialog h2 { margin: 0; }
   .side-user { margin-top: 0; }
   .content { padding: 16px; }
 }
+
+/* ---------- view switch ---------- */
+.seg { display: inline-flex; background: #EEF0F5; border-radius: var(--radius); padding: 3px; }
+.seg a { min-height: 32px; padding: 0 14px; display: inline-flex; align-items: center; border-radius: 6px; color: var(--muted); font-weight: 700; text-decoration: none; }
+.seg a:hover { color: var(--ink); }
+.seg a.is-active { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(50, 51, 56, .12); }
+
+/* ---------- pulse: the board at a glance ---------- */
+.pulse { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin-bottom: 18px; }
+.pulse-tile { background: var(--surface); border: 1px solid var(--line); border-top: 4px solid var(--tone); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 2px; text-decoration: none; color: var(--ink); }
+.pulse-tile:hover { border-color: var(--line-strong); border-top-color: var(--tone); color: var(--ink); }
+.pulse-tile span { font-size: 13px; font-weight: 700; color: var(--muted); }
+.pulse-tile b { font-size: 30px; font-weight: 800; line-height: 1.1; }
+.pulse-tile small { font-size: 12px; color: var(--muted); }
+.pulse-tile em { font-style: normal; color: #B42318; font-weight: 700; }
+.pulse-tile.is-alert { background: #FFF5F6; }
+
+/* ---------- pipeline board ---------- */
+.kanban-wrap { overflow-x: auto; padding-bottom: 8px; scroll-snap-type: x proximity; }
+.kanban { display: grid; grid-template-columns: repeat(5, minmax(250px, 1fr)); gap: 12px; min-width: 1300px; align-items: start; }
+.kcol { background: #EEF0F5; border-radius: 12px; border-top: 4px solid var(--tone); padding: 12px; display: flex; flex-direction: column; gap: 10px; min-height: 260px; scroll-snap-align: start; scroll-margin-top: 16px; }
+.kcol header { display: flex; align-items: center; gap: 8px; }
+.kcol h2 { margin: 0; font-size: 15px; font-weight: 800; flex: 1; }
+.kcol .count { background: var(--surface); border-radius: 10px; padding: 0 9px; font-weight: 700; font-size: 13px; }
+.kcol-hint { margin: -6px 0 0; font-size: 12px; color: var(--muted); }
+.kcol:target { outline: 3px solid var(--tone); outline-offset: 2px; }
+.kadd { min-height: 38px; border: 1.5px dashed var(--line-strong); border-radius: 8px; background: transparent; color: var(--muted); font-weight: 700; cursor: pointer; }
+.kadd:hover { border-color: var(--primary); color: var(--primary); }
+.kmore { font-size: 13px; font-weight: 700; text-align: center; padding: 6px; }
+
+.kcard { background: var(--surface); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 1px 2px rgba(50, 51, 56, .08); border-left: 4px solid transparent; }
+.kcard.is-revision { border-left-color: var(--danger); }
+.kcard.is-late { border-left-color: #B42318; }
+.kchips { justify-content: flex-start; padding: 0; }
+.chip.is-pending { opacity: .55; }
+a.chip { text-decoration: none; }
+.ktitle { font-weight: 700; font-size: 14px; color: var(--ink); text-decoration: none; }
+.ktitle:hover { color: var(--primary); }
+.kflag { margin: 0; font-size: 12px; font-weight: 700; color: var(--danger); }
+.kmeta { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.kwhen { font-size: 12px; font-weight: 700; color: var(--muted); background: #F6F7FB; border-radius: 6px; padding: 2px 8px; }
+.kwhen.is-today { background: #FFF4CC; color: #7A5C00; }
+.kwhen.is-late { background: #FDE8EB; color: #B42318; }
+.kwhen.is-soft { font-weight: 500; }
+.kcounts { display: flex; gap: 10px; font-size: 12px; color: var(--muted); }
+.kactions, .kpublish { display: flex; flex-wrap: wrap; gap: 6px; align-items: flex-start; border-top: 1px solid var(--line); padding-top: 8px; }
+.kpublish { flex-direction: column; align-items: stretch; }
+.kfold > summary { list-style: none; }
+.kfold > summary::-webkit-details-marker { display: none; }
+.kfold[open] { flex-basis: 100%; }
+.kfold form { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+.kfold textarea, .kfold input { width: 100%; min-height: 36px; padding: 6px 8px; border: 1px solid var(--line-strong); border-radius: 6px; font-size: 13px; }
+.kfold textarea { min-height: 70px; resize: vertical; }
+.kpost { width: 100%; justify-content: flex-start; border-left: 4px solid var(--pf); }
+.kby { margin: 0; font-size: 12px; color: var(--muted); }

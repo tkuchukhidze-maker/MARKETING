@@ -332,4 +332,35 @@ class StudioTest extends TestCase
             ->assertSessionHasErrors('role');
         $this->assertSame('admin', $admin->fresh()->role);
     }
+
+    public function test_board_shows_the_whole_pipeline_with_what_to_post_and_what_went_live(): void
+    {
+        $smm = User::factory()->create(['role' => 'smm']);
+        $designer = User::factory()->create(['role' => 'designer']);
+
+        $this->task(['title' => 'კვირის აფიშა', 'status' => 'review']);
+        $late = $this->task(['title' => 'ღვინის საღამო', 'status' => 'approved', 'publish_at' => now()->subHours(2)], ['facebook' => 'პოსტი', 'story' => 'სთორი 9:16']);
+        $live = $this->task(['title' => 'ახალი მენიუ', 'status' => 'approved'], ['instagram' => 'პოსტი 4:5']);
+        $live->confirmPublished($live->channels->first(), $smm, 'https://instagram.com/p/abc');
+
+        // the social media manager sees the stages, can approve and confirm per platform right on the card
+        $this->actingAs($smm)->get(route('board', $this->batumi))->assertOk()
+            ->assertSeeInOrder(['გასაკეთებელი', 'მუშავდება', 'დასადასტურებელი', 'განსათავსებელი', 'განთავსდა'])
+            ->assertSee('კვირის აფიშა')
+            ->assertSee(route('tasks.approve', Task::where('title', 'კვირის აფიშა')->first()))
+            ->assertSee('დაგვიანდა')
+            ->assertSee(route('tasks.publish', [$late, $late->channels->firstWhere('platform', 'facebook')]))
+            ->assertSee('https://instagram.com/p/abc')
+            ->assertSee('დადო: '.$smm->name, false);
+
+        // everyone sees the same board, but only managers get the buttons
+        $this->actingAs($designer)->get(route('board', $this->batumi))->assertOk()
+            ->assertSee('ღვინის საღამო')->assertSee('ახალი მენიუ')
+            ->assertDontSee(route('tasks.publish', [$late, $late->channels->first()]))
+            ->assertDontSee(route('tasks.approve', Task::where('title', 'კვირის აფიშა')->first()));
+
+        // the old table is still one click away
+        $this->actingAs($smm)->get(route('board', [$this->batumi, 'view' => 'list']))->assertOk()
+            ->assertSee('ღვინის საღამო')->assertDontSee('kanban');
+    }
 }

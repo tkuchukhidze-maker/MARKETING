@@ -24,6 +24,9 @@ final class Studio
      */
     public const BOARD_ORDER = ['review', 'revision', 'todo', 'in_progress', 'approved', 'published'];
 
+    /** How many days finished posts stay in the board's "განთავსდა" column. */
+    public const DONE_DAYS = 14;
+
     /** Statuses only the admin/CMO, marketing lead or social media manager may set. */
     public const APPROVAL_STATUSES = ['approved', 'revision', 'published'];
 

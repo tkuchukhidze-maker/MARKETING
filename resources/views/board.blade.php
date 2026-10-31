@@ -7,16 +7,50 @@
 <header class="page-head">
     <h1><span class="venue-badge" style="background: {{ $venue->color }}"></span>{{ $venue->name }}</h1>
     <span class="spacer"></span>
+    @php($keep = ['platform' => $platform, 'mine' => $mine ?: null, 'q' => $q ?: null])
+    <nav class="seg" aria-label="ხედი">
+        <a class="{{ $view === 'board' ? 'is-active' : '' }}" href="{{ route('board', [$venue, ...$keep]) }}" @if ($view === 'board') aria-current="page" @endif>დაფა</a>
+        <a class="{{ $view === 'list' ? 'is-active' : '' }}" href="{{ route('board', [$venue, 'view' => 'list', ...$keep]) }}" @if ($view === 'list') aria-current="page" @endif>სია</a>
+    </nav>
     <a class="btn" href="{{ route('calendar', $venue) }}">კალენდარი</a>
     <button class="btn primary" type="button" onclick="document.getElementById('new-task').showModal()">+ ახალი დავალება</button>
 </header>
 
+@php($boardUrl = route('board', [$venue, 'platform' => $platform, 'mine' => $mine ?: null, 'q' => $q ?: null]))
+<section class="pulse" aria-label="მოკლე სურათი">
+    <a class="pulse-tile" href="{{ $boardUrl }}#col-review" style="--tone: #E0A800">
+        <span>დასადასტურებელი</span>
+        <b>{{ $pulse['review'] }}</b>
+        <small>{{ auth()->user()->canApprove() ? ($pulse['review'] ? 'ელოდება შენს გადაწყვეტილებას' : 'არაფერი ელოდება') : 'მენეჯერთან განხილვაზე' }}</small>
+    </a>
+    <a class="pulse-tile {{ $pulse['post_late'] ? 'is-alert' : '' }}" href="{{ $boardUrl }}#col-approved" style="--tone: #00854D">
+        <span>განსათავსებელი</span>
+        <b>{{ $pulse['to_post'] }}</b>
+        <small>დღეს {{ $pulse['post_today'] }}@if ($pulse['post_late']) · <em>დაგვიანდა {{ $pulse['post_late'] }}</em>@endif</small>
+    </a>
+    <a class="pulse-tile" href="{{ $boardUrl }}#col-in_progress" style="--tone: #1F76C2">
+        <span>პროცესშია</span>
+        <b>{{ $pulse['working'] }}</b>
+        <small>@if ($pulse['revision'])შესწორებაზე {{ $pulse['revision'] }}@else გასაკეთებელი + მუშავდება @endif</small>
+    </a>
+    <a class="pulse-tile" href="{{ $boardUrl }}#col-published" style="--tone: #6E3FD1">
+        <span>განთავსდა ამ კვირაში</span>
+        <b>{{ $pulse['live_week'] }}</b>
+        <small>პოსტი / სთორი ყველა ქსელში</small>
+    </a>
+    <a class="pulse-tile {{ $pulse['overdue'] ? 'is-alert' : '' }}" href="{{ route('board', [$venue, 'view' => 'list']) }}" style="--tone: #D83A52">
+        <span>ვადაგადაცილებული</span>
+        <b>{{ $pulse['overdue'] }}</b>
+        <small>{{ $pulse['overdue'] ? 'ნახე სიაში' : 'ყველაფერი დროზეა' }}</small>
+    </a>
+</section>
+
 <nav class="tabs" aria-label="პლატფორმა">
-    <a class="tab {{ $platform ? '' : 'is-active' }}" href="{{ route('board', [$venue, 'mine' => $mine ?: null, 'q' => $q ?: null]) }}">
+    <a class="tab {{ $platform ? '' : 'is-active' }}" href="{{ route('board', [$venue, 'view' => $view === 'list' ? 'list' : null, 'mine' => $mine ?: null, 'q' => $q ?: null]) }}">
         ყველა <span class="count">{{ $totalCount }}</span>
     </a>
     @foreach (Studio::PLATFORMS as $key => [$label, $color])
-        <a class="tab {{ $platform === $key ? 'is-active' : '' }}" href="{{ route('board', [$venue, 'platform' => $key, 'mine' => $mine ?: null, 'q' => $q ?: null]) }}">
+        <a class="tab {{ $platform === $key ? 'is-active' : '' }}" href="{{ route('board', [$venue, 'view' => $view === 'list' ? 'list' : null, 'platform' => $key, 'mine' => $mine ?: null, 'q' => $q ?: null]) }}">
             <span class="pf-dot" style="background: {{ $color }}"></span>{{ $label }} <span class="count">{{ $platformCounts[$key] }}</span>
         </a>
     @endforeach
@@ -29,17 +63,10 @@
         <input id="q" type="search" name="q" value="{{ $q }}" placeholder="დავალების ძიება">
         @if ($platform)<input type="hidden" name="platform" value="{{ $platform }}">@endif
         @if ($mine)<input type="hidden" name="mine" value="1">@endif
+        @if ($view === 'list')<input type="hidden" name="view" value="list">@endif
     </form>
-    <a class="btn {{ $mine ? 'is-on' : '' }}" href="{{ route('board', [$venue, 'platform' => $platform, 'mine' => $mine ? null : 1, 'q' => $q ?: null]) }}">ჩემი დავალებები</a>
+    <a class="btn {{ $mine ? 'is-on' : '' }}" href="{{ route('board', [$venue, 'view' => $view === 'list' ? 'list' : null, 'platform' => $platform, 'mine' => $mine ? null : 1, 'q' => $q ?: null]) }}">ჩემი დავალებები</a>
 </div>
-
-@if ($totalCount > 0)
-    <div class="summary" role="img" aria-label="სტატუსების განაწილება">
-        @foreach ($statusSummary as $key => $n)
-            @if ($n > 0)<span style="width: {{ $n / $totalCount * 100 }}%; background: {{ Studio::STATUSES[$key][1] }}"></span>@endif
-        @endforeach
-    </div>
-@endif
 
 @if ($hints->isNotEmpty())
     <section class="hints" aria-label="ჭკვიანი შეხსენებები">
@@ -51,8 +78,38 @@
     </section>
 @endif
 
+@if ($view === 'board')
+    <div class="kanban-wrap">
+        <div class="kanban">
+            @foreach ($columns as $col)
+                <section class="kcol" id="col-{{ $col['key'] }}" style="--tone: {{ $col['color'] }}" aria-labelledby="col-{{ $col['key'] }}-h">
+                    <header>
+                        <span class="ws-dot" aria-hidden="true"></span>
+                        <h2 id="col-{{ $col['key'] }}-h">{{ $col['label'] }}</h2>
+                        <span class="count">{{ $col['tasks']->count() }}</span>
+                    </header>
+                    <p class="kcol-hint">{{ $col['hint'] }}</p>
+
+                    @if ($col['key'] === 'todo')
+                        <button class="kadd" type="button" onclick="document.getElementById('new-task').showModal()">+ ახალი დავალება</button>
+                    @endif
+
+                    @forelse ($col['tasks'] as $task)
+                        @include('partials.board-card', ['task' => $task, 'col' => $col['key']])
+                    @empty
+                        <p class="ws-empty">{{ $col['empty'] }}</p>
+                    @endforelse
+
+                    @if (($col['older'] ?? 0) > 0)
+                        <a class="kmore" href="{{ route('board', [$venue, 'view' => 'list', 'platform' => $platform]) }}#grp-published">+ {{ $col['older'] }} ძველი — სიაში</a>
+                    @endif
+                </section>
+            @endforeach
+        </div>
+    </div>
+@else
 @foreach ($groups as $group)
-    <details class="group" @if ($group['open']) open @endif style="--group: {{ $group['color'] }}">
+    <details class="group" id="grp-{{ $group['key'] }}" @if ($group['open']) open @endif style="--group: {{ $group['color'] }}">
         <summary style="color: {{ $group['key'] === 'review' ? '#8A6D00' : $group['color'] }}">
             <svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
             {{ $group['label'] }} <small>{{ $group['tasks']->count() }} დავალება{{ $group['key'] === 'in_progress' ? ' · შემსრულებლების სივრცეში' : '' }}</small>
@@ -114,6 +171,7 @@
         </div>
     </details>
 @endforeach
+@endif
 
 <dialog id="new-task" aria-labelledby="new-task-title">
     <form method="post" action="{{ route('tasks.store', $venue) }}">
