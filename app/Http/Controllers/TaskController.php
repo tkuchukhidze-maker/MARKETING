@@ -87,6 +87,7 @@ class TaskController extends Controller
 
     public function store(Request $request, Venue $venue): RedirectResponse
     {
+        abort_unless($venue->in_studio, 404);
         [$fields, $channels, $people] = $this->validateTask($request);
 
         $task = DB::transaction(function () use ($venue, $fields, $channels, $people, $request) {

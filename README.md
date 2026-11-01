@@ -12,6 +12,65 @@
 - **ჭკვიანი შეხსენებები** — გამოითვლება ბაზიდან წესებით: ვადაგადაცილება, დასადასტურებელი ვადასთან ახლოს, შემსრულებლის გარეშე დავალება, გადატვირთული წევრი (5+ ღია), ცარიელი დღეები პლატფორმაზე.
 - ისტორია და კომენტარები თითო დავალებაზე.
 
+## CMO რეპორტინგი
+
+`/reports` — ჩანს **მხოლოდ ადმინს (CMO) და მარკეტინგის ხელმძღვანელს**. სოც. მედიის გუნდი, დიზაინერები და სხვები ვერ ხედავენ (არც მენიუში, არც ბმულით — 403).
+
+**ბრენდები:** ბათუმის სახლში, ქუთაისის სახლში, Magnolia Hotel. Magnolia მხოლოდ რეპორტინგშია — სოც. მედიის დაფაზე არ ჩანს.
+
+### ერთიანი ბაზა
+
+ყველა პლატფორმის ყველა რიცხვი ერთ ცხრილში იწერება — `metrics_daily`: ბრენდი · წყარო · კამპანია · დღე · მეტრიკა · მნიშვნელობა. ხელახალი სინქრონიზაცია ძველ მნიშვნელობას ცვლის და არასდროს აორმაგებს.
+
+| ცხრილი | რა არის |
+|---|---|
+| `data_sources` | დაკავშირებული ანგარიშები; ტოკენები დაშიფრულია `APP_KEY`-ით |
+| `metrics_daily` | ერთიანი ბაზა |
+| `marketing_costs` | ხარჯები, რაც API-ში არ ჩანს (სააგენტო, ინფლუენსერი, გადაღება, ბეჭდვა…) |
+| `kpi_targets` | თვის გეგმა ბრენდზე |
+| `venues.gross_margin`, `venues.attribution_share` | ROMI-ს პარამეტრები |
+
+### პლატფორმები
+
+| პლატფორმა | როგორ შემოდის | რა მეტრიკები |
+|---|---|---|
+| Facebook გვერდი | Graph API | reach, views, engagement, ახალი/სულ გამომწერი |
+| Instagram | Graph API | reach, views, interactions, profile views, website clicks, გამომწერები |
+| Meta Ads | Marketing API | spend, impressions, reach, clicks, conversions, conversion value — კამპანიებით |
+| Google Ads | Google Ads API | cost, impressions, clicks, conversions, value — კამპანიებით |
+| GA4 | Analytics Data API | sessions, users, new users, engaged sessions, key events |
+| Google Business Profile | Performance API | ნახვები, ზარები, მარშრუტი, საიტზე გადასვლა, ჯავშნები |
+| Search Console | Search Analytics API | clicks, impressions, საშუალო პოზიცია |
+| TikTok / TikTok Ads | Business API | ნახვები, ჩართულობა, გამომწერები / spend, clicks, conversions |
+| POS / გაყიდვები | **push** — POS აგზავნის JSON-ს წყაროს საიდუმლო მისამართზე, ან CSV | revenue, checks, guests, reservations, new customers, marketing revenue |
+
+ნებისმიერ წყაროზე შეიძლება **CSV-ის ატვირთვა** (სვეტები: `date` + მეტრიკები, სურვილისამებრ `campaign`) — თუ API-ს წვდომა ჯერ არ გაქვს.
+
+POS-ის მისამართი: `POST /api/reporting/ingest/{token}` — `{"date":"2026-10-31","revenue":4520.5,"checks":61,"guests":140,"reservations":22,"new_customers":35,"marketing_revenue":900}` ან `{"days":[…]}`.
+
+### KPI-ები და ფორმულები
+
+- **მარკეტინგის ხარჯი** = რეკლამის ხარჯი (Meta + Google + TikTok, ლარში) + სხვა ხარჯები
+- **მარკეტინგის შემოსავალი** = POS-ის `marketing_revenue`; თუ არ მოდის — შემოსავალი × ატრიბუციის წილი
+- **ROMI** = (მარკეტინგის შემოსავალი × მარჟა − ხარჯი) ÷ ხარჯი
+- **ROI (ზრდაზე)** = ((შემოსავალი − წინა პერიოდის შემოსავალი) × მარჟა − ხარჯი) ÷ ხარჯი
+- **MER** = შემოსავალი ÷ ხარჯი · **ROAS** = პლატფორმის კონვერსიის ღირებულება ÷ რეკლამის ხარჯი
+- **CAC** = ხარჯი ÷ ახალი სტუმრები · ჯავშნის ფასი, საშუალო ჩეკი, ხარჯი შემოსავლის %
+- რეკლამა: CPM, CPC, CTR, CPA, CR · სოც. მედია: reach, ER, გამომწერები · საიტი: სესიები, კონვერსია · Google რუკა: ქმედებები · ძიება: CTR, პოზიცია
+
+ყველა KPI დაშბორდზე ჩანს ფორმულით, წინა პერიოდთან შედარებით, ბრენდების მიხედვით; ექსპორტი — CSV (Excel / Google Sheets).
+
+### გაშვება
+
+1. Environment (Laravel Cloud): `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_ADS_DEVELOPER_TOKEN` (Google-ისთვის). დანარჩენი — `.env.example`-ში `REPORTING_*`, `META_*`.
+2. Laravel Cloud-ში ჩართე **Scheduler** — ყოველ დილით 06:30-ზე (თბილისი) `reports:sync` ბოლო 3 დღეს განაახლებს.
+3. `/reports/sources` — დაამატე ანგარიშები, დააჭირე „სინქრონიზაცია“ (ისტორიისთვის — 1 წელი).
+4. `/reports/plan` — მარჟა და ატრიბუციის წილი თითო ბრენდზე, სხვა ხარჯები, თვის გეგმა.
+
+ხელით: `php artisan reports:sync --from=2026-01-01 --to=2026-10-31` ან `--source=ID`.
+
+API-ების ვერსიები და Meta-ს მეტრიკების სახელები `config/reporting.php`-შია — Meta-მ მეტრიკა თუ შეცვალა, კოდის შეცვლა არ სჭირდება.
+
 ## როლები
 
 | როლი | უფლებები |

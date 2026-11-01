@@ -28,6 +28,17 @@ class DatabaseSeeder extends Seeder
             'concept' => "ქუთაისის სახლში — ცალკე მენიუ და ინფორმაცია.\nDJ არ არის.\nკონტენტი ქართულად და ინგლისურად.",
         ]);
 
+        // reporting-only brand: in the CMO reports, not on the social media board
+        Venue::firstOrCreate(['slug' => 'magnolia'], [
+            'name' => 'Magnolia Hotel',
+            'color' => '#7A4E9C',
+            'sort' => 3,
+            'in_studio' => false,
+            'kind' => 'hotel',
+            'gross_margin' => 0.70,
+            'concept' => 'Magnolia Hotel Tbilisi — სასტუმრო. მხოლოდ CMO რეპორტინგში.',
+        ]);
+
         $email = env('ADMIN_EMAIL', 'admin@example.com');
 
         if (! User::where('email', $email)->exists()) {

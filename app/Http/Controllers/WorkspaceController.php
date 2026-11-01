@@ -17,7 +17,7 @@ class WorkspaceController extends Controller
     public function index(Request $request): View
     {
         $user = $request->user();
-        $venues = Venue::orderBy('sort')->get();
+        $venues = Venue::studio()->get();
         $venue = $venues->firstWhere('slug', $request->query('venue'));
 
         $mine = TaskAssignment::query()

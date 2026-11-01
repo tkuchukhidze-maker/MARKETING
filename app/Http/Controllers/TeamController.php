@@ -19,7 +19,7 @@ class TeamController extends Controller
 {
     public function index(Insights $insights): View
     {
-        $venues = Venue::orderBy('sort')->get();
+        $venues = Venue::studio()->get();
         $open = Task::open()->get(['id', 'venue_id', 'status', 'due_on']);
         $parts = TaskAssignment::whereIn('task_id', $open->pluck('id'))->get();
 
@@ -99,7 +99,7 @@ class TeamController extends Controller
 
         return view('contacts', [
             'contacts' => Contact::with('venue')->when($type, fn ($q) => $q->where('type', $type))->orderBy('name')->get(),
-            'venues' => Venue::orderBy('sort')->get(),
+            'venues' => Venue::studio()->get(),
             'type' => $type,
         ]);
     }
