@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Models\User;
 use App\Models\Venue;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Schema;
 
 class DatabaseSeeder extends Seeder
 {
@@ -29,7 +30,8 @@ class DatabaseSeeder extends Seeder
         ]);
 
         // reporting-only brand: in the CMO reports, not on the social media board
-        Venue::firstOrCreate(['slug' => 'magnolia'], [
+        // (only once the reporting migration has run — never break a deploy)
+        if (Schema::hasColumn('venues', 'in_studio')) Venue::firstOrCreate(['slug' => 'magnolia'], [
             'name' => 'Magnolia Hotel',
             'color' => '#7A4E9C',
             'sort' => 3,

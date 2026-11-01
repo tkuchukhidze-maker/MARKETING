@@ -20,14 +20,23 @@ return new class extends Migration
 {
     public function up(): void
     {
+        // each step checks first, so a deploy that stopped half-way can simply run again
         Schema::table('venues', function (Blueprint $table) {
-            $table->boolean('in_studio')->default(true)->after('sort');
-            $table->string('kind', 20)->default('restaurant')->after('in_studio');
-            $table->decimal('gross_margin', 5, 4)->default(0.65)->after('kind');
-            $table->decimal('attribution_share', 5, 4)->default(0.30)->after('gross_margin');
+            if (! Schema::hasColumn('venues', 'in_studio')) {
+                $table->boolean('in_studio')->default(true);
+            }
+            if (! Schema::hasColumn('venues', 'kind')) {
+                $table->string('kind', 20)->default('restaurant');
+            }
+            if (! Schema::hasColumn('venues', 'gross_margin')) {
+                $table->decimal('gross_margin', 5, 4)->default(0.65);
+            }
+            if (! Schema::hasColumn('venues', 'attribution_share')) {
+                $table->decimal('attribution_share', 5, 4)->default(0.30);
+            }
         });
 
-        Schema::create('data_sources', function (Blueprint $table) {
+        if (! Schema::hasTable('data_sources')) Schema::create('data_sources', function (Blueprint $table) {
             $table->id();
             $table->foreignId('venue_id')->constrained()->cascadeOnDelete();
             $table->string('provider', 30)->index();
@@ -43,7 +52,7 @@ return new class extends Migration
             $table->timestamps();
         });
 
-        Schema::create('metrics_daily', function (Blueprint $table) {
+        if (! Schema::hasTable('metrics_daily')) Schema::create('metrics_daily', function (Blueprint $table) {
             $table->id();
             $table->foreignId('venue_id')->constrained()->cascadeOnDelete();
             $table->foreignId('data_source_id')->nullable()->constrained()->nullOnDelete();
@@ -61,7 +70,7 @@ return new class extends Migration
             $table->index(['provider', 'metric', 'date']);
         });
 
-        Schema::create('marketing_costs', function (Blueprint $table) {
+        if (! Schema::hasTable('marketing_costs')) Schema::create('marketing_costs', function (Blueprint $table) {
             $table->id();
             $table->foreignId('venue_id')->constrained()->cascadeOnDelete();
             $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
@@ -73,7 +82,7 @@ return new class extends Migration
             $table->timestamps();
         });
 
-        Schema::create('kpi_targets', function (Blueprint $table) {
+        if (! Schema::hasTable('kpi_targets')) Schema::create('kpi_targets', function (Blueprint $table) {
             $table->id();
             $table->foreignId('venue_id')->constrained()->cascadeOnDelete();
             $table->date('month');
