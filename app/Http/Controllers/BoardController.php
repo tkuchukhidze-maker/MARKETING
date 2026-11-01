@@ -21,13 +21,14 @@ class BoardController extends Controller
             return redirect()->route('workspace');
         }
 
-        $venue = Venue::orderBy('sort')->firstOrFail();
+        $venue = Venue::studio()->firstOrFail();
 
         return redirect()->route('board', $venue);
     }
 
     public function board(Request $request, Venue $venue, Insights $insights): View
     {
+        abort_unless($venue->in_studio, 404);
         $platform = $request->query('platform');
         $platform = array_key_exists((string) $platform, Studio::PLATFORMS) ? $platform : null;
         $mine = $request->boolean('mine');
@@ -108,6 +109,7 @@ class BoardController extends Controller
 
     public function calendar(Request $request, Venue $venue): View
     {
+        abort_unless($venue->in_studio, 404);
         try {
             $start = Carbon::parse((string) $request->query('week', today()->toDateString()))->startOfWeek();
         } catch (\Throwable) {

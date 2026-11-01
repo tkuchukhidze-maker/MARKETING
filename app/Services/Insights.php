@@ -98,7 +98,7 @@ class Insights
         }
 
         // 5. Empty days per platform in the next 7 days
-        foreach ($venue ? collect([$venue]) : Venue::orderBy('sort')->get() as $v) {
+        foreach ($venue ? collect([$venue]) : Venue::studio()->get() as $v) {
             $gaps = $this->emptyDays($v, today(), 7);
             foreach ($gaps as $platform => $days) {
                 if (count($days) >= 3) {

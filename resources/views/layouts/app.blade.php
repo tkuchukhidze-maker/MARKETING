@@ -9,9 +9,10 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&family=Noto+Sans+Georgian:wght@400;500;600;700;800&display=swap">
     <link rel="stylesheet" href="{{ asset('css/studio.css') }}?v=5">
+    @stack('styles')
 </head>
 <body>
-@php($navVenues = \App\Models\Venue::orderBy('sort')->get())
+@php($navVenues = \App\Models\Venue::studio()->get())
 @php($myOpen = \App\Models\TaskAssignment::where('user_id', auth()->id())->where('status', '!=', 'ready')->whereHas('task', fn ($q) => $q->open())->count())
 <div class="shell">
     <aside class="side">
@@ -36,6 +37,18 @@
                 <a class="side-link sub {{ request()->routeIs('calendar') && request()->route('venue')?->is($v) ? 'is-active' : '' }}" href="{{ route('calendar', $v) }}">კალენდარი</a>
             </nav>
         @endforeach
+
+        @can('reports')
+        <nav aria-label="CMO რეპორტინგი">
+            <span class="side-label">CMO რეპორტინგი</span>
+            <a class="side-link {{ request()->routeIs('reports.index') ? 'is-active' : '' }}" href="{{ route('reports.index') }}">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>
+                დაშბორდი
+            </a>
+            <a class="side-link sub {{ request()->routeIs('reports.sources') ? 'is-active' : '' }}" href="{{ route('reports.sources') }}">პლატფორმები</a>
+            <a class="side-link sub {{ request()->routeIs('reports.plan') ? 'is-active' : '' }}" href="{{ route('reports.plan') }}">ხარჯები და გეგმა</a>
+        </nav>
+        @endcan
 
         @unless (auth()->user()->isMaker())
         <nav aria-label="გუნდი">

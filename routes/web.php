@@ -2,6 +2,9 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BoardController;
+use App\Http\Controllers\Reporting\PlanController;
+use App\Http\Controllers\Reporting\ReportController;
+use App\Http\Controllers\Reporting\SourceController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\TeamController;
 use App\Http\Controllers\WorkspaceController;
@@ -43,4 +46,23 @@ Route::middleware('auth')->group(function () {
     Route::post('/contacts', [TeamController::class, 'storeContact'])->name('contacts.store');
     Route::put('/contacts/{contact}', [TeamController::class, 'updateContact'])->name('contacts.update');
     Route::delete('/contacts/{contact}', [TeamController::class, 'destroyContact'])->name('contacts.destroy');
+});
+
+// ---- CMO reporting: admin (CMO) and marketing lead only
+Route::middleware(['auth', 'can:reports'])->prefix('reports')->name('reports.')->group(function () {
+    Route::get('/', [ReportController::class, 'index'])->name('index');
+    Route::get('/export', [ReportController::class, 'export'])->name('export');
+
+    Route::get('/sources', [SourceController::class, 'index'])->name('sources');
+    Route::post('/sources', [SourceController::class, 'store'])->name('sources.store');
+    Route::put('/sources/{source}', [SourceController::class, 'update'])->name('sources.update');
+    Route::delete('/sources/{source}', [SourceController::class, 'destroy'])->name('sources.destroy');
+    Route::post('/sources/{source}/sync', [SourceController::class, 'sync'])->name('sources.sync');
+    Route::post('/sources/{source}/import', [SourceController::class, 'import'])->name('sources.import');
+
+    Route::get('/plan', [PlanController::class, 'index'])->name('plan');
+    Route::post('/plan/costs', [PlanController::class, 'storeCost'])->name('costs.store');
+    Route::delete('/plan/costs/{cost}', [PlanController::class, 'destroyCost'])->name('costs.destroy');
+    Route::post('/plan/targets', [PlanController::class, 'saveTargets'])->name('targets.save');
+    Route::put('/plan/brands/{venue}', [PlanController::class, 'saveBrand'])->name('brands.save');
 });

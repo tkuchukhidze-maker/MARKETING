@@ -52,6 +52,12 @@ class User extends Authenticatable
         return ! $this->canApprove();
     }
 
+    /** CMO reporting (revenue, ROMI, budgets): admin/CMO and the marketing lead only. */
+    public function canSeeReports(): bool
+    {
+        return $this->is_active && in_array($this->role, ['admin', 'manager'], true);
+    }
+
     public function isAdmin(): bool
     {
         return $this->role === 'admin';
