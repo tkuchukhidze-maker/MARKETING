@@ -16,13 +16,88 @@
 
 <p class="rp-muted" style="margin-top: -6px">ყველა ანგარიში ერთ ბაზაში იწერება. ყოველ დილით {{ config('reporting.sync_at') }}-ზე ბოლო {{ config('reporting.sync_days') }} დღე თავიდან იტვირთება. ტოკენები ბაზაში დაშიფრულად ინახება და აქ აღარ ჩანს.</p>
 
-@unless ($googleReady)
-    <div class="rp-callout">
-        <span aria-hidden="true">!</span>
-        <p><b>Google-ის აპი არ არის მითითებული.</b> GA4, Google Ads, Business Profile და Search Console-ისთვის სერვერის გარემოში (Laravel Cloud → Environment) დაამატე
-            <code>GOOGLE_CLIENT_ID</code> და <code>GOOGLE_CLIENT_SECRET</code>@unless ($adsReady), Google Ads-ისთვის კი <code>GOOGLE_ADS_DEVELOPER_TOKEN</code>@endunless.</p>
+{{-- ---- Google: one sign-in, then pick what to add ---- --}}
+<section class="panel" style="margin-bottom: 18px" id="google">
+    <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap">
+        <h2 style="margin: 0; flex: 1">Google — Analytics, Search Console, Business Profile</h2>
+        @if ($google)
+            <span class="rp-status ok">დაკავშირებულია{{ $google->email ? ': '.$google->email : '' }}</span>
+            <form method="post" action="{{ route('reports.google.disconnect') }}" onsubmit="return confirm('გაითიშოს Google? დამატებული წყაროები აღარ განახლდება.')">
+                @csrf @method('delete')
+                <button class="btn sm ghost" type="submit">გათიშვა</button>
+            </form>
+        @elseif ($googleReady)
+            <a class="btn primary" href="{{ route('reports.google.connect') }}">Google-ის დაკავშირება</a>
+        @endif
     </div>
-@endunless
+
+    @unless ($googleReady)
+        <div class="rp-callout" style="margin: 14px 0 0">
+            <span aria-hidden="true">!</span>
+            <p><b>Google-ის აპი ჯერ არ არის მითითებული.</b> Laravel Cloud → Environment-ში დაამატე <code>GOOGLE_CLIENT_ID</code> და <code>GOOGLE_CLIENT_SECRET</code> და გაუშვი Deploy.
+                Google Cloud-ის OAuth კლიენტში Redirect URI: <code style="display: inline">{{ $callbackUrl }}</code></p>
+        </div>
+    @endunless
+
+    @if ($google)
+        @foreach ($discovered['errors'] as $api => $msg)
+            <div class="rp-source" style="margin-top: 12px"><div class="err">{{ ['auth' => 'Google', 'ga4' => 'Analytics', 'search_console' => 'Search Console', 'google_business' => 'Business Profile'][$api] ?? $api }}: {{ $msg }}</div></div>
+        @endforeach
+
+        @php
+            $groups = ['ga4' => 'Google Analytics 4 — საიტები', 'search_console' => 'Search Console — ორგანული ძიება', 'google_business' => 'Business Profile — Google რუკა'];
+            $guess = function (string $text) use ($venues) {
+                $t = mb_strtolower($text);
+                foreach ($venues as $v) {
+                    foreach ([$v->slug, mb_strtolower($v->name)] as $needle) {
+                        if ($needle !== '' && str_contains($t, $needle)) return $v->id;
+                    }
+                    if ($v->slug === 'batumi' && preg_match('/batum|ბათუმ/u', $t)) return $v->id;
+                    if ($v->slug === 'kutaisi' && preg_match('/kutais|ქუთაის/u', $t)) return $v->id;
+                    if ($v->slug === 'magnolia' && preg_match('/magnolia|მაგნოლ/u', $t)) return $v->id;
+                }
+                return null;
+            };
+        @endphp
+        @foreach ($groups as $provider => $title)
+            <h3 style="font-size: 14px; margin: 18px 0 8px">{{ $title }}</h3>
+            @if (empty($discovered[$provider]))
+                <p class="rp-muted" style="margin: 0; font-size: 13px">ამ ანგარიშზე არაფერი მოიძებნა.</p>
+            @else
+                <div style="overflow-x: auto">
+                    <table class="plain" style="min-width: 520px">
+                        <tbody>
+                        @foreach ($discovered[$provider] as $item)
+                            @php($done = in_array($provider.'|'.$item['id'], $linked, true))
+                            <tr>
+                                <td><b>{{ $item['name'] }}</b><br><small class="rp-muted">{{ $item['group'] }}{{ $item['group'] ? ' · ' : '' }}{{ $item['id'] }}</small></td>
+                                <td style="width: 52%">
+                                    @if ($done)
+                                        <span class="rp-status ok">დამატებულია</span>
+                                    @else
+                                        <form method="post" action="{{ route('reports.google.add') }}" style="display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap">
+                                            @csrf
+                                            <input type="hidden" name="provider" value="{{ $provider }}">
+                                            <input type="hidden" name="account_id" value="{{ $item['id'] }}">
+                                            <input type="hidden" name="label" value="{{ \App\Reporting\Catalog::PROVIDERS[$provider]['label'] }} — {{ \Illuminate\Support\Str::limit($item['name'], 60) }}">
+                                            @php($g = $guess($item['name'].' '.$item['group']))
+                                            <select name="venue_id" class="btn sm" style="padding: 0 6px" aria-label="ბრენდი">
+                                                @foreach ($venues as $v)<option value="{{ $v->id }}" @selected($g === $v->id)>{{ $v->name }}</option>@endforeach
+                                            </select>
+                                            <button class="btn sm primary" type="submit">დამატება</button>
+                                        </form>
+                                    @endif
+                                </td>
+                            </tr>
+                        @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            @endif
+        @endforeach
+        <p class="rp-muted" style="font-size: 12px; margin: 14px 0 0">Google Ads-ისთვის საჭიროა Developer token (Google Ads → API Center){{ $adsReady ? ' — მითითებულია.' : ' — ჯერ არ არის.' }}</p>
+    @endif
+</section>
 
 <details class="panel" style="margin-bottom: 18px" {{ $venues->sum(fn ($v) => $v->dataSources->count()) === 0 ? 'open' : '' }}>
     <summary style="cursor: pointer; font-weight: 800; font-size: 16px">+ ახალი პლატფორმის დაკავშირება</summary>

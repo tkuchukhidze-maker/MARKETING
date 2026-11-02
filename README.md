@@ -60,6 +60,12 @@ POS-ის მისამართი: `POST /api/reporting/ingest/{token}` —
 
 ყველა KPI დაშბორდზე ჩანს ფორმულით, წინა პერიოდთან შედარებით, ბრენდების მიხედვით; ექსპორტი — CSV (Excel / Google Sheets).
 
+### Google — ერთი დაკავშირება
+
+`/reports/sources` → **Google-ის დაკავშირება**: ერთი შესვლით GA4, Search Console და Business Profile. ტოკენს არავინ აკოპირებს — Google-იდან პირდაპირ ბაზაში იწერება (დაშიფრულად). შემდეგ სიაში ჩანს ყველა GA4 property, საიტი და ლოკაცია — „დამატება“ და 90 დღე ჩამოიტვირთება.
+
+საჭიროა Google Cloud-ში OAuth კლიენტი (Web application), Redirect URI: `https://<საიტი>/reports/google/callback`, და Environment-ში `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`. ჩართე API-ები: Google Analytics Admin, Google Analytics Data, Google Search Console, My Business Account Management, My Business Business Information, Business Profile Performance (ამ უკანასკნელებს Google-ისგან წვდომის მოთხოვნა სჭირდება).
+
 ### ანალიზები
 
 `/reports/analyses` — წერილობითი რეპორტები ბრენდის მიხედვით (Meta Ads-ის აუდიტი, Inbox-ის მიმოხილვა…). ატვირთე `.md` / `.txt` ან ჩასვი ტექსტი: ცხრილები გამოჩნდება ცხრილებად, `- [ ]` სტრიქონები კი ცალკე **ჩეკლისტად**, რომელსაც გუნდი მონიშნავს (ვინ და როდის). ბოლო ანალიზები ჩანს დაშბორდზეც. HTML და საეჭვო ბმულები ტექსტში არ სრულდება.
