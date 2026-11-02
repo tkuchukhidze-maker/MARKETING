@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BoardController;
+use App\Http\Controllers\Reporting\AnalysisController;
 use App\Http\Controllers\Reporting\PlanController;
 use App\Http\Controllers\Reporting\ReportController;
 use App\Http\Controllers\Reporting\SourceController;
@@ -65,4 +66,12 @@ Route::middleware(['auth', 'can:reports'])->prefix('reports')->name('reports.')-
     Route::delete('/plan/costs/{cost}', [PlanController::class, 'destroyCost'])->name('costs.destroy');
     Route::post('/plan/targets', [PlanController::class, 'saveTargets'])->name('targets.save');
     Route::put('/plan/brands/{venue}', [PlanController::class, 'saveBrand'])->name('brands.save');
+
+    Route::get('/analyses', [AnalysisController::class, 'index'])->name('analyses.index');
+    Route::get('/analyses/new', [AnalysisController::class, 'create'])->name('analyses.create');
+    Route::post('/analyses', [AnalysisController::class, 'store'])->name('analyses.store');
+    Route::get('/analyses/{analysis}', [AnalysisController::class, 'show'])->name('analyses.show');
+    Route::put('/analyses/{analysis}', [AnalysisController::class, 'update'])->name('analyses.update');
+    Route::delete('/analyses/{analysis}', [AnalysisController::class, 'destroy'])->name('analyses.destroy');
+    Route::post('/analyses/{analysis}/actions/{action}', [AnalysisController::class, 'toggle'])->name('analyses.toggle');
 });

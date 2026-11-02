@@ -6,7 +6,7 @@
 @section('title', 'CMO რეპორტინგი')
 
 @push('styles')
-<link rel="stylesheet" href="{{ asset('css/reports.css') }}?v=1">
+<link rel="stylesheet" href="{{ asset('css/reports.css') }}?v=2">
 @endpush
 
 @php
@@ -81,6 +81,21 @@
             {{ $report['sources']->where('last_status', 'error')->map(fn ($s) => $s->venue->name.' · '.$s->label)->join(', ') }}.
             <a href="{{ route('reports.sources') }}">გასწორება →</a></p>
     </div>
+@endif
+
+{{-- ---- written analyses and their open actions ---- --}}
+@if ($analyses->isNotEmpty())
+    <section class="panel" style="margin-bottom: 18px">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px">
+            <h2 style="margin: 0; flex: 1">ანალიზები და ჩეკლისტი</h2>
+            <a class="btn sm" href="{{ route('reports.analyses.index', $brand ? ['brand' => $brand->slug] : []) }}">ყველა</a>
+        </div>
+        <div class="rp-analyses">
+            @foreach ($analyses as $a)
+                @include('reports.analyses.card', ['a' => $a])
+            @endforeach
+        </div>
+    </section>
 @endif
 
 {{-- ---- headline: money in, money out ---- --}}

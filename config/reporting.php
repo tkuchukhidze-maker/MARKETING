@@ -24,7 +24,7 @@ return [
         // Page insights metric => our metric. Each is requested separately, so
         // one retired metric does not stop the others.
         'page_metrics' => [
-            'page_impressions_unique' => 'reach',
+            'page_total_media_view_unique' => 'reach',
             'page_media_view' => 'impressions',
             'page_post_engagements' => 'engagement',
             'page_daily_follows_unique' => 'new_followers',

@@ -63,3 +63,39 @@ table.plain td.rp-num small { color: var(--muted); }
 
 .rp-targets input { width: 120px; min-height: 34px; padding: 0 8px; border: 1px solid var(--line-strong); border-radius: 6px; text-align: right; }
 .rp-muted { color: var(--muted); }
+
+/* ---------- analyses ---------- */
+.rp-analyses { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 12px; }
+.rp-analysis { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); text-decoration: none; min-width: 0; }
+.rp-analysis:hover { border-color: var(--line-strong); color: var(--ink); box-shadow: 0 2px 8px rgba(50, 51, 56, .06); }
+.rp-analysis-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; }
+.rp-analysis b { font-size: 15px; line-height: 1.35; }
+.rp-analysis-sum { color: var(--muted); font-size: 13px; }
+.rp-analysis-progress { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--muted); }
+
+.rp-md { line-height: 1.6; font-size: 14.5px; overflow-wrap: anywhere; }
+.rp-md > :first-child { margin-top: 0; }
+.rp-md h1 { font-size: 24px; line-height: 1.25; margin: 0 0 12px; }
+.rp-md h2 { font-size: 18px; margin: 30px 0 10px; padding-top: 18px; border-top: 1px solid var(--line); }
+.rp-md h3 { font-size: 15px; margin: 22px 0 8px; }
+.rp-md p, .rp-md ul, .rp-md ol { margin: 0 0 12px; }
+.rp-md ul, .rp-md ol { padding-left: 22px; }
+.rp-md li { margin-bottom: 4px; }
+.rp-md em { color: var(--muted); }
+.rp-md code { background: var(--hover); border-radius: 4px; padding: 1px 5px; font-size: 13px; }
+.rp-md table { display: block; overflow-x: auto; border-collapse: collapse; margin: 6px 0 16px; font-size: 13px; max-width: 100%; }
+.rp-md th, .rp-md td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.rp-md th { color: var(--muted); font-weight: 700; font-size: 12px; background: var(--bg); white-space: nowrap; }
+.rp-md td[align="right"], .rp-md th[align="right"] { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rp-md tr:hover td { background: var(--bg); }
+
+.rp-checklist h3 { font-size: 13px; text-transform: none; color: var(--muted); margin: 14px 0 6px; }
+.rp-checklist ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.rp-checklist li { display: flex; gap: 10px; align-items: flex-start; padding: 6px 4px; border-radius: 6px; font-size: 13px; }
+.rp-checklist li:hover { background: var(--hover); }
+.rp-checklist li small { display: block; color: var(--muted); font-size: 11px; }
+.rp-checklist li.is-done > span { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--line-strong); }
+.rp-checklist li.is-done small { text-decoration: none; }
+.rp-check { width: 22px; height: 22px; flex: none; border-radius: 6px; border: 2px solid var(--line-strong); background: var(--surface); display: grid; place-items: center; cursor: pointer; padding: 0; color: #fff; margin-top: 1px; }
+.rp-check:hover { border-color: var(--primary); }
+.rp-checklist li.is-done .rp-check { background: var(--ok); border-color: var(--ok); }

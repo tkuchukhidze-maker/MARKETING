@@ -4,7 +4,7 @@
 @section('title', 'პლატფორმები — CMO რეპორტინგი')
 
 @push('styles')
-<link rel="stylesheet" href="{{ asset('css/reports.css') }}?v=1">
+<link rel="stylesheet" href="{{ asset('css/reports.css') }}?v=2">
 @endpush
 
 @section('content')

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Reporting;
 
 use App\Http\Controllers\Controller;
+use App\Models\AnalysisReport;
 use App\Models\Venue;
 use App\Reporting\Kpi;
 use App\Reporting\ReportBuilder;
@@ -27,6 +28,10 @@ class ReportController extends Controller
             'report' => $builder->build($venues, $from, $to, $pf, $pt),
             'currency' => config('reporting.currency'),
             'query' => array_filter($request->only(['brand', 'period', 'from', 'to'])),
+            'analyses' => AnalysisReport::with('venue')
+                ->withCount(['actions', 'actions as done_count' => fn ($q) => $q->whereNotNull('done_at')])
+                ->when($brand, fn ($q) => $q->where(fn ($q) => $q->where('venue_id', $brand->id)->orWhereNull('venue_id')))
+                ->latest()->limit(4)->get(),
         ]);
     }
 

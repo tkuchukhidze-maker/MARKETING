@@ -16,7 +16,7 @@ class MetaPageConnector extends Connector
     public function fetch(DataSource $source, CarbonImmutable $from, CarbonImmutable $to): iterable
     {
         $base = 'https://graph.facebook.com/'.config('reporting.meta.graph_version').'/';
-        $token = $source->credential('access_token');
+        $token = $this->pageToken($base, $source);
         $rows = [];
         $errors = [];
 
@@ -61,5 +61,18 @@ class MetaPageConnector extends Connector
         }
 
         return $rows;
+    }
+
+    /**
+     * Page insights only accept a Page access token. A System user / user
+     * token is exchanged for the page's own token; a pasted page token
+     * comes back unchanged.
+     */
+    private function pageToken(string $base, DataSource $source): string
+    {
+        $token = $source->credential('access_token');
+        $response = $this->http()->get($base.$source->account_id, ['fields' => 'access_token', 'access_token' => $token]);
+
+        return $response->successful() && $response->json('access_token') ? $response->json('access_token') : $token;
     }
 }
