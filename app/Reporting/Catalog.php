@@ -27,7 +27,7 @@ final class Catalog
     public const PROVIDERS = [
         'facebook' => [
             'label' => 'Facebook გვერდი', 'channel' => 'organic', 'color' => '#1464D2',
-            'account' => 'Page ID', 'fields' => ['access_token' => 'Page access token (long-lived)'],
+            'account' => 'Page ID', 'fields' => ['access_token' => 'System user token (ან Page token)'],
             'metrics' => ['reach', 'impressions', 'engagement', 'new_followers', 'followers'],
         ],
         'instagram' => [
