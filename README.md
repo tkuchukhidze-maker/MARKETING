@@ -60,6 +60,10 @@ POS-ის მისამართი: `POST /api/reporting/ingest/{token}` —
 
 ყველა KPI დაშბორდზე ჩანს ფორმულით, წინა პერიოდთან შედარებით, ბრენდების მიხედვით; ექსპორტი — CSV (Excel / Google Sheets).
 
+### ანალიზები
+
+`/reports/analyses` — წერილობითი რეპორტები ბრენდის მიხედვით (Meta Ads-ის აუდიტი, Inbox-ის მიმოხილვა…). ატვირთე `.md` / `.txt` ან ჩასვი ტექსტი: ცხრილები გამოჩნდება ცხრილებად, `- [ ]` სტრიქონები კი ცალკე **ჩეკლისტად**, რომელსაც გუნდი მონიშნავს (ვინ და როდის). ბოლო ანალიზები ჩანს დაშბორდზეც. HTML და საეჭვო ბმულები ტექსტში არ სრულდება.
+
 ### გაშვება
 
 1. Environment (Laravel Cloud): `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_ADS_DEVELOPER_TOKEN` (Google-ისთვის). დანარჩენი — `.env.example`-ში `REPORTING_*`, `META_*`.
