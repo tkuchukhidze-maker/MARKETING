@@ -43,7 +43,7 @@ class AnalysisController extends Controller
 
         $report = DB::transaction(function () use ($data, $parsed, $request) {
             $report = AnalysisReport::create([
-                'venue_id' => $data['venue_id'],
+                'venue_id' => $data['venue_id'] ?? null,
                 'user_id' => $request->user()->id,
                 'slug' => AnalysisReport::uniqueSlug($data['title']),
                 'title' => $data['title'],
