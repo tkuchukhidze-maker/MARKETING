@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Reporting;
 
 use App\Http\Controllers\Controller;
 use App\Models\DataSource;
+use App\Models\OAuthConnection;
 use App\Models\Venue;
 use App\Reporting\Catalog;
 use App\Reporting\CsvMetrics;
@@ -24,6 +25,11 @@ class SourceController extends Controller
             'venues' => Venue::orderBy('sort')->with(['dataSources' => fn ($q) => $q->orderBy('provider')])->get(),
             'googleReady' => config('reporting.google.client_id') && config('reporting.google.client_secret'),
             'adsReady' => (bool) config('reporting.google.ads_developer_token'),
+            'google' => OAuthConnection::google(),
+            'discovered' => GoogleController::discover(),
+            'linked' => DataSource::whereIn('provider', ['ga4', 'search_console', 'google_business'])->get(['provider', 'account_id', 'venue_id'])
+                ->map(fn ($s) => $s->provider.'|'.$s->account_id)->all(),
+            'callbackUrl' => route('reports.google.callback'),
         ]);
     }
 

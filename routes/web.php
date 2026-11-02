@@ -3,6 +3,7 @@
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BoardController;
 use App\Http\Controllers\Reporting\AnalysisController;
+use App\Http\Controllers\Reporting\GoogleController;
 use App\Http\Controllers\Reporting\PlanController;
 use App\Http\Controllers\Reporting\ReportController;
 use App\Http\Controllers\Reporting\SourceController;
@@ -66,6 +67,11 @@ Route::middleware(['auth', 'can:reports'])->prefix('reports')->name('reports.')-
     Route::delete('/plan/costs/{cost}', [PlanController::class, 'destroyCost'])->name('costs.destroy');
     Route::post('/plan/targets', [PlanController::class, 'saveTargets'])->name('targets.save');
     Route::put('/plan/brands/{venue}', [PlanController::class, 'saveBrand'])->name('brands.save');
+
+    Route::get('/google/connect', [GoogleController::class, 'connect'])->name('google.connect');
+    Route::get('/google/callback', [GoogleController::class, 'callback'])->name('google.callback');
+    Route::delete('/google', [GoogleController::class, 'disconnect'])->name('google.disconnect');
+    Route::post('/google/sources', [GoogleController::class, 'add'])->name('google.add');
 
     Route::get('/analyses', [AnalysisController::class, 'index'])->name('analyses.index');
     Route::get('/analyses/new', [AnalysisController::class, 'create'])->name('analyses.create');
